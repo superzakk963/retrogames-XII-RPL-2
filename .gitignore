@@ -1,0 +1,16 @@
+# File rahasia / credential
+.env
+.env.*
+*.key
+*.pem
+
+# Editor
+.vscode/
+.idea/
+
+# File sistem
+.DS_Store
+Thumbs.db
+
+# Dependency PHP
+vendor/

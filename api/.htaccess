@@ -1,0 +1,12 @@
+# Prevent direct browser access to API folder listing
+Options -Indexes
+
+# Only allow PHP files
+<FilesMatch "\.php$">
+    Allow from all
+</FilesMatch>
+
+# Block non-PHP files
+<FilesMatch "^(?!.*\.php$).*$">
+    Deny from all
+</FilesMatch>
