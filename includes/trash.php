@@ -14,12 +14,16 @@ if (!defined('TRASH_AUTOPURGE_INTERVAL')) {
     define('TRASH_AUTOPURGE_INTERVAL', 3600); // 1 hour
 }
 
+// NOTE: games are PERMANENT content and can never be soft-deleted, restored,
+// or purged. Their PHP files live in /games, so the DB row must always exist.
+// Games are hidden via is_active (Hide/Show) instead.
+
 /**
  * Soft delete a single row by marking deleted_at = NOW().
  * Returns the number of affected rows.
  */
 function softDelete(string $table, int $id): int {
-    $allowed = ['users', 'games', 'scores']; // whitelist — never build SQL from user input
+    $allowed = ['users', 'scores']; // whitelist — never build SQL from user input
     if (!in_array($table, $allowed, true)) return 0;
 
     $pdo = getDB();
@@ -52,7 +56,7 @@ function softDelete(string $table, int $id): int {
  * $conds: list of ["col" => value] pairs (ANDed together). Values are bound, not interpolated.
  */
 function softDeleteWhere(string $table, array $conds): int {
-    $allowed = ['users', 'games', 'scores'];
+    $allowed = ['users', 'scores'];
     if (!in_array($table, $allowed, true) || empty($conds)) return 0;
 
     $set = [];
@@ -74,7 +78,7 @@ function softDeleteWhere(string $table, array $conds): int {
  * For users it also restores the original username/email if they are free.
  */
 function restoreFromTrash(string $table, int $id): bool {
-    $allowed = ['users', 'games', 'scores'];
+    $allowed = ['users', 'scores'];
     if (!in_array($table, $allowed, true)) return false;
 
     $pdo = getDB();
@@ -108,12 +112,12 @@ function restoreFromTrash(string $table, int $id): bool {
  * Permanently delete a row from the trash. This is the only place in the app
  * that runs a real DELETE statement.
  *
- * Cascades: purging a user or game also permanently deletes all of its scores
+ * Cascades: purging a user also permanently deletes all of their scores
  * (inside a transaction), so the delete can never fail on FK constraints.
  * game_sessions rows are cascade-deleted by the database itself.
  */
 function purgeFromTrash(string $table, int $id): bool {
-    $allowed = ['users', 'games', 'scores'];
+    $allowed = ['users', 'scores'];
     if (!in_array($table, $allowed, true)) return false;
 
     $pdo = getDB();
@@ -121,8 +125,6 @@ function purgeFromTrash(string $table, int $id): bool {
     try {
         if ($table === 'users') {
             $pdo->prepare("DELETE FROM scores WHERE user_id = ?")->execute([$id]);
-        } elseif ($table === 'games') {
-            $pdo->prepare("DELETE FROM scores WHERE game_id = ?")->execute([$id]);
         }
         $stmt = $pdo->prepare("DELETE FROM `$table` WHERE id = ? AND deleted_at IS NOT NULL");
         $stmt->execute([$id]);
@@ -136,12 +138,12 @@ function purgeFromTrash(string $table, int $id): bool {
 }
 
 /**
- * Permanently empty the entire trash. Users/games cascade their scores.
- * Returns the number of purged rows per table: ['users'=>n, 'games'=>n, 'scores'=>n].
+ * Permanently empty the entire trash. Users cascade their scores.
+ * Returns the number of purged rows per table: ['users'=>n, 'scores'=>n].
  */
 function emptyTrash(): array {
     $pdo = getDB();
-    $purged = ['users' => 0, 'games' => 0, 'scores' => 0];
+    $purged = ['users' => 0, 'scores' => 0];
 
     // 1. All trashed scores
     $purged['scores'] = (int)$pdo->exec("DELETE FROM scores WHERE deleted_at IS NOT NULL");
@@ -153,25 +155,18 @@ function emptyTrash(): array {
         catch (PDOException $e) { error_log('Empty-trash user purge failed: ' . $e->getMessage()); }
     }
 
-    // 3. All trashed games (cascade removes their remaining scores)
-    $ids = $pdo->query("SELECT id FROM games WHERE deleted_at IS NOT NULL")->fetchAll(PDO::FETCH_COLUMN);
-    foreach ($ids as $id) {
-        try { if (purgeFromTrash('games', (int)$id)) $purged['games']++; }
-        catch (PDOException $e) { error_log('Empty-trash game purge failed: ' . $e->getMessage()); }
-    }
-
     return $purged;
 }
 
 /**
  * Permanently delete every trash item older than $days days (default: 30).
- * Order matters: scores first, then users/games (each purge cascades its scores).
- * Returns the number of purged rows per table: ['users'=>n, 'games'=>n, 'scores'=>n].
+ * Order matters: scores first, then users (each user purge cascades their scores).
+ * Returns the number of purged rows per table: ['users'=>n, 'scores'=>n].
  */
 function purgeExpiredTrash(int $days = TRASH_RETENTION_DAYS): array {
     if ($days < 0) $days = 0;
     $pdo = getDB();
-    $purged = ['users' => 0, 'games' => 0, 'scores' => 0];
+    $purged = ['users' => 0, 'scores' => 0];
 
     // 1. Expired scores
     $purged['scores'] = $pdo->exec("DELETE FROM scores
@@ -185,15 +180,6 @@ function purgeExpiredTrash(int $days = TRASH_RETENTION_DAYS): array {
     foreach ($ids as $id) {
         try { if (purgeFromTrash('users', (int)$id)) $purged['users']++; }
         catch (PDOException $e) { error_log('Auto-purge user failed: ' . $e->getMessage()); }
-    }
-
-    // 3. Expired games (cascade removes their remaining scores)
-    $ids = $pdo->query("SELECT id FROM games
-        WHERE deleted_at IS NOT NULL
-          AND deleted_at < NOW() - INTERVAL " . (int)$days . " DAY")->fetchAll(PDO::FETCH_COLUMN);
-    foreach ($ids as $id) {
-        try { if (purgeFromTrash('games', (int)$id)) $purged['games']++; }
-        catch (PDOException $e) { error_log('Auto-purge game failed: ' . $e->getMessage()); }
     }
 
     return $purged;
@@ -219,13 +205,12 @@ function autoPurgeTrash(): array {
 
 /**
  * Count of items currently in the recycle bin, per table.
- * Returns ['users' => int, 'games' => int, 'scores' => int].
+ * Returns ['users' => int, 'scores' => int].
  */
 function trashCounts(): array {
     $pdo = getDB();
     return [
         'users'  => (int)$pdo->query("SELECT COUNT(*) FROM users  WHERE deleted_at IS NOT NULL")->fetchColumn(),
-        'games'  => (int)$pdo->query("SELECT COUNT(*) FROM games  WHERE deleted_at IS NOT NULL")->fetchColumn(),
         'scores' => (int)$pdo->query("SELECT COUNT(*) FROM scores WHERE deleted_at IS NOT NULL")->fetchColumn(),
     ];
 }

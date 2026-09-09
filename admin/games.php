@@ -26,8 +26,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // NOTE: no delete action here on purpose — games are the app's built-in
         // content and their PHP files live in /games regardless of the DB row.
         // Deleting a DB row would leave a broken link. Use Hide/Show instead.
-        // The Trash page still supports restoring/purging games if any ever
-        // end up there (e.g. legacy data).
     }
 }
 

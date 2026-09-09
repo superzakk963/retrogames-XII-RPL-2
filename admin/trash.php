@@ -18,7 +18,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } else {
         $action = $_POST['action'] ?? '';
         $id     = (int)($_POST['id'] ?? 0);
-        $table  = in_array($_POST['table'] ?? '', ['users', 'games', 'scores'], true) ? $_POST['table'] : '';
+        $table  = in_array($_POST['table'] ?? '', ['users', 'scores'], true) ? $_POST['table'] : '';
 
         if ($action === 'restore' && $table && $id) {
             restoreFromTrash($table, $id);
@@ -31,7 +31,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 purgeFromTrash($table, $id);
                 setFlash('success', ucfirst($table) . ' permanently deleted.');
             } catch (PDOException $e) {
-                // FK constraint: e.g. a user/game still has scores referencing it
+                // FK constraint: e.g. a user still has scores referencing it
                 error_log('Trash purge failed: ' . $e->getMessage());
                 setFlash('danger', 'Cannot permanently delete: this item still has related records (e.g. scores). Remove those first.');
             }
@@ -41,8 +41,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($action === 'empty') {
             $r = emptyTrash();
             setFlash('success', sprintf(
-                'Trash emptied: %d user(s), %d game(s), and %d score(s) permanently deleted.',
-                $r['users'], $r['games'], $r['scores']
+                'Trash emptied: %d user(s) and %d score(s) permanently deleted.',
+                $r['users'], $r['scores']
             ));
             header('Location: trash.php'); exit;
         }
@@ -54,23 +54,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $autoPurged = autoPurgeTrash();
 if (array_sum($autoPurged) > 0) {
     setFlash('info', sprintf(
-        'Auto-cleanup: %d user(s), %d game(s), and %d score(s) older than %d days were permanently removed from the Trash.',
-        $autoPurged['users'], $autoPurged['games'], $autoPurged['scores'], TRASH_RETENTION_DAYS
+        'Auto-cleanup: %d user(s) and %d score(s) older than %d days were permanently removed from the Trash.',
+        $autoPurged['users'], $autoPurged['scores'], TRASH_RETENTION_DAYS
     ));
     header('Location: trash.php'); exit;
 }
 
 $counts = trashCounts();
-$totalTrash = $counts['users'] + $counts['games'] + $counts['scores'];
+$totalTrash = $counts['users'] + $counts['scores'];
 
 $trashedUsers = $pdo->query(
     "SELECT id, username, email, role, created_at, deleted_at
      FROM users WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC"
-)->fetchAll();
-
-$trashedGames = $pdo->query(
-    "SELECT id, slug, name, category, created_at, deleted_at
-     FROM games WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC"
 )->fetchAll();
 
 $trashedScores = $pdo->query("
@@ -111,7 +106,7 @@ include '../includes/header.php';
 
     <?php if ($totalTrash > 0): ?>
     <div class="trash-actions">
-        <form method="POST" onsubmit="return confirm('EMPTY THE ENTIRE TRASH?<?= "\\n" ?>All <?= $totalTrash ?> item(s) — users, games, and scores — will be PERMANENTLY deleted. This CANNOT be undone!')">
+        <form method="POST" onsubmit="return confirm('EMPTY THE ENTIRE TRASH?<?= "\\n" ?>All <?= $totalTrash ?> item(s) — users and scores — will be PERMANENTLY deleted. This CANNOT be undone!')">
             <input type="hidden" name="csrf_token" value="<?= csrfToken() ?>">
             <input type="hidden" name="action" value="empty">
             <button type="submit" class="btn btn-danger">🗑 Empty Trash (<?= $totalTrash ?>)</button>
@@ -158,49 +153,6 @@ include '../includes/header.php';
                 <?php endforeach; ?>
                 <?php if (empty($trashedUsers)): ?>
                 <tr><td colspan="7">Trash is empty for users.</td></tr>
-                <?php endif; ?>
-            </tbody>
-        </table>
-    </div>
-
-    <!-- Trashed Games -->
-    <div class="admin-card">
-        <h3>🎮 Deleted Games (<?= count($trashedGames) ?>)</h3>
-        <table class="data-table">
-            <thead>
-                <tr><th>ID</th><th>Name</th><th>Slug</th><th>Category</th><th>Deleted At</th><th>Actions</th></tr>
-            </thead>
-            <tbody>
-                <?php foreach ($trashedGames as $g): ?>
-                <tr class="row-deleted">
-                    <td><?= $g['id'] ?></td>
-                    <td><?= sanitize($g['name']) ?></td>
-                    <td><code><?= sanitize($g['slug']) ?></code></td>
-                    <td><span class="badge badge-<?= sanitize($g['category']) ?>"><?= ucfirst(sanitize($g['category'])) ?></span></td>
-                    <td><?= date('M d Y H:i', strtotime($g['deleted_at'])) ?></td>
-                    <td class="action-cell">
-                        <form method="POST" style="display:inline">
-                            <input type="hidden" name="csrf_token" value="<?= csrfToken() ?>">
-                            <input type="hidden" name="action" value="restore">
-                            <input type="hidden" name="table" value="games">
-                            <input type="hidden" name="id" value="<?= $g['id'] ?>">
-                            <button type="submit" class="btn btn-xs btn-primary">↩ Restore</button>
-                        </form>
-                        <form method="POST" style="display:inline">
-                            <input type="hidden" name="csrf_token" value="<?= csrfToken() ?>">
-                            <input type="hidden" name="action" value="purge">
-                            <input type="hidden" name="table" value="games">
-                            <input type="hidden" name="id" value="<?= $g['id'] ?>">
-                            <button type="submit" class="btn btn-xs btn-danger"
-                                    onclick="return confirm('PERMANENTLY delete game <?= sanitize($g['name']) ?> AND all of its scores? This CANNOT be undone!')">
-                                ✕ Delete Forever
-                            </button>
-                        </form>
-                    </td>
-                </tr>
-                <?php endforeach; ?>
-                <?php if (empty($trashedGames)): ?>
-                <tr><td colspan="6">Trash is empty for games.</td></tr>
                 <?php endif; ?>
             </tbody>
         </table>
