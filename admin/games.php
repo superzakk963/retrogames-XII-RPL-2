@@ -1,7 +1,6 @@
 <?php
 require_once '../includes/auth.php';
 require_once '../includes/db.php';
-require_once '../includes/trash.php';
 startSession();
 requireAdmin('../index.php');
 
@@ -24,13 +23,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             setFlash('success', 'Game status toggled.');
             header('Location: games.php'); exit;
         }
-
-        if ($action === 'delete') {
-            $id = (int)$_POST['id'];
-            softDelete('games', $id);
-            setFlash('success', 'Game moved to Trash. You can restore it from the Trash page.');
-            header('Location: games.php'); exit;
-        }
+        // NOTE: no delete action here on purpose — games are the app's built-in
+        // content and their PHP files live in /games regardless of the DB row.
+        // Deleting a DB row would leave a broken link. Use Hide/Show instead.
+        // The Trash page still supports restoring/purging games if any ever
+        // end up there (e.g. legacy data).
     }
 }
 
@@ -80,15 +77,6 @@ include '../includes/header.php';
                             <input type="hidden" name="id" value="<?= $g['id'] ?>">
                             <button type="submit" class="btn btn-xs btn-warning">
                                 <?= $g['is_active'] ? 'Hide' : 'Show' ?>
-                            </button>
-                        </form>
-                        <form method="POST" style="display:inline">
-                            <input type="hidden" name="csrf_token" value="<?= csrfToken() ?>">
-                            <input type="hidden" name="action" value="delete">
-                            <input type="hidden" name="id" value="<?= $g['id'] ?>">
-                            <button type="submit" class="btn btn-xs btn-danger"
-                                    onclick="return confirm('Delete game <?= sanitize($g['name']) ?>? It will be moved to the Trash and can be restored.')">
-                                Delete
                             </button>
                         </form>
                     </td>

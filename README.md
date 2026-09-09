@@ -38,7 +38,8 @@ DB credentials live in `includes/db.php` (defaults: `root`, no password, DB `ret
 
 | Action | Where | Effect |
 |---|---|---|
-| Delete | Users / Games / Scores pages | Moves item to Trash (recoverable) |
+| Delete | Users / Scores pages | Moves item to Trash (recoverable) |
+| Hide / Show | Games page | Built-in games cannot be deleted (their PHP files must exist) — hide them from the public instead |
 | ↩ Restore | Admin → Trash | Brings the item back (users get their original username/email back if still free) |
 | ✕ Delete Forever | Admin → Trash | Permanent; also removes that user's/game's scores |
 | 🗑 Empty Trash | Admin → Trash | Permanently purges the entire Trash |
@@ -112,7 +113,8 @@ Kredensial database ada di `includes/db.php` (bawaan: `root`, tanpa password, DB
 
 | Aksi | Lokasi | Efek |
 |---|---|---|
-| Delete | Halaman Users / Games / Scores | Memindahkan item ke Trash (masih bisa dipulihkan) |
+| Delete | Halaman Users / Scores | Memindahkan item ke Trash (masih bisa dipulihkan) |
+| Hide / Show | Halaman Games | Game bawaan tidak bisa dihapus (file PHP-nya harus tetap ada) — sembunyikan dari publik saja |
 | ↩ Restore | Admin → Trash | Mengembalikan data (username/email asli user kembali kalau belum dipakai orang lain) |
 | ✕ Delete Forever | Admin → Trash | Hapus permanen; skor milik user/game itu ikut terhapus |
 | 🗑 Empty Trash | Admin → Trash | Menghapus permanen seluruh isi Trash |

@@ -17,3 +17,5 @@ vendor/
 
 # Backup database (berisi hash password - jangan di-commit)
 retrogames_backup_pre_migration.sql
+
+cmd-history.txt
