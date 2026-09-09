@@ -6,8 +6,8 @@ startSession();
 $pageTitle = 'Home';
 $pdo = getDB();
 
-// Fetch active games
-$games = $pdo->query("SELECT * FROM games WHERE is_active = 1 ORDER BY sort_order ASC")->fetchAll();
+// Fetch active games (soft-deleted games are excluded)
+$games = $pdo->query("SELECT * FROM games WHERE is_active = 1 AND deleted_at IS NULL ORDER BY sort_order ASC")->fetchAll();
 
 // Fetch top scores per game
 $topScores = $pdo->query("

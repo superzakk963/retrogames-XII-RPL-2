@@ -42,7 +42,7 @@ if (empty($gameSlug) || $score === false) {
 
 $pdo = getDB();
 
-$gameStmt = $pdo->prepare('SELECT id FROM games WHERE slug = ? AND is_active = 1');
+$gameStmt = $pdo->prepare('SELECT id FROM games WHERE slug = ? AND is_active = 1 AND deleted_at IS NULL');
 $gameStmt->execute([$gameSlug]);
 $game = $gameStmt->fetch();
 

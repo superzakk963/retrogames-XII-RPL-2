@@ -7,7 +7,7 @@ startSession();
 if (!isset($gameSlug)) die('gameSlug not set');
 
 $pdo = getDB();
-$gameData = $pdo->prepare("SELECT * FROM games WHERE slug = ? AND is_active = 1");
+$gameData = $pdo->prepare("SELECT * FROM games WHERE slug = ? AND is_active = 1 AND deleted_at IS NULL");
 $gameData->execute([$gameSlug]);
 $gameData = $gameData->fetch();
 if (!$gameData) {
@@ -33,7 +33,7 @@ if (isLoggedIn()) {
         SELECT MAX(s.score) AS best
         FROM scores s
         JOIN games g ON s.game_id = g.id
-        WHERE s.user_id = ? AND g.slug = ?
+        WHERE s.user_id = ? AND g.slug = ? AND s.deleted_at IS NULL
     ");
     $myBestStmt->execute([$_SESSION['user_id'], $gameSlug]);
     $myBest = $myBestStmt->fetchColumn();

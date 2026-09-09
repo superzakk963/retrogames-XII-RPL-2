@@ -1,6 +1,7 @@
 <?php
 require_once '../includes/auth.php';
 require_once '../includes/db.php';
+require_once '../includes/trash.php';
 startSession();
 requireAdmin('../index.php');
 
@@ -30,7 +31,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (strlen($password) < 6)                               $errors[] = 'Password too short.';
 
             if (empty($errors)) {
-                $dup = $pdo->prepare("SELECT id FROM users WHERE username=? OR email=?");
+                $dup = $pdo->prepare("SELECT id FROM users WHERE (username=? OR email=?) AND deleted_at IS NULL");
                 $dup->execute([$username, $email]);
                 if ($dup->fetch()) {
                     $errors[] = 'Username or email already exists.';
@@ -64,8 +65,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!filter_var($email, FILTER_VALIDATE_EMAIL))         $errors[] = 'Invalid email.';
 
             if (empty($errors)) {
-                // Check dup excluding self
-                $dup = $pdo->prepare("SELECT id FROM users WHERE (username=? OR email=?) AND id!=?");
+                // Check dup excluding self (active users only)
+                $dup = $pdo->prepare("SELECT id FROM users WHERE (username=? OR email=?) AND id!=? AND deleted_at IS NULL");
                 $dup->execute([$username, $email, $id]);
                 if ($dup->fetch()) {
                     $errors[] = 'Username or email already taken.';
@@ -87,8 +88,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($id == $_SESSION['user_id']) {
                 $errors[] = 'Cannot delete your own account.';
             } else {
-                $pdo->prepare("DELETE FROM users WHERE id=?")->execute([$id]);
-                setFlash('success', 'User deleted.');
+                softDelete('users', $id);
+                setFlash('success', 'User moved to Trash. You can restore it from the Trash page.');
                 header('Location: users.php'); exit;
             }
         }
@@ -113,7 +114,7 @@ $page      = max(1, (int)($_GET['page'] ?? 1));
 $perPage   = 20;
 $offset    = ($page - 1) * $perPage;
 
-$where = ['1=1'];
+$where = ['deleted_at IS NULL']; // exclude recycle-bin users
 $params = [];
 if ($search) { $where[] = "(username LIKE ? OR email LIKE ?)"; $params[] = "%$search%"; $params[] = "%$search%"; }
 if ($roleFilter) { $where[] = "role = ?"; $params[] = $roleFilter; }
@@ -130,7 +131,7 @@ $users = $stmt->fetchAll();
 
 $editUser = null;
 if (isset($_GET['edit'])) {
-    $eu = $pdo->prepare("SELECT * FROM users WHERE id=?");
+    $eu = $pdo->prepare("SELECT * FROM users WHERE id=? AND deleted_at IS NULL");
     $eu->execute([(int)$_GET['edit']]);
     $editUser = $eu->fetch();
 }
@@ -146,6 +147,7 @@ include '../includes/header.php';
             <a href="users.php" class="active">Users</a>
             <a href="games.php">Games</a>
             <a href="scores.php">Scores</a>
+            <a href="trash.php">🗑 Trash</a>
         </nav>
     </div>
 
@@ -256,7 +258,7 @@ include '../includes/header.php';
                             <input type="hidden" name="action" value="delete">
                             <input type="hidden" name="id" value="<?= $u['id'] ?>">
                             <button type="submit" class="btn btn-xs btn-danger"
-                                    onclick="return confirm('DELETE user <?= sanitize($u['username']) ?>? This cannot be undone!')">
+                                    onclick="return confirm('Delete user <?= sanitize($u['username']) ?>? It will be moved to the Trash and can be restored.')">
                                 Delete
                             </button>
                         </form>

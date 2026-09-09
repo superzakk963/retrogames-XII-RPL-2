@@ -40,14 +40,14 @@ function requireAdmin($redirect = '../index.php') {
 function getCurrentUser() {
     if (!isLoggedIn()) return null;
     $pdo = getDB();
-    $stmt = $pdo->prepare("SELECT * FROM users WHERE id = ? AND is_active = 1");
+    $stmt = $pdo->prepare("SELECT * FROM users WHERE id = ? AND is_active = 1 AND deleted_at IS NULL");
     $stmt->execute([$_SESSION['user_id']]);
     return $stmt->fetch();
 }
 
 function login($usernameOrEmail, $password) {
     $pdo = getDB();
-    $stmt = $pdo->prepare("SELECT * FROM users WHERE (username = ? OR email = ?) AND is_active = 1");
+    $stmt = $pdo->prepare("SELECT * FROM users WHERE (username = ? OR email = ?) AND is_active = 1 AND deleted_at IS NULL");
     $stmt->execute([$usernameOrEmail, $usernameOrEmail]);
     $user = $stmt->fetch();
 
@@ -96,8 +96,9 @@ function register($username, $email, $password): array {
 
     $pdo = getDB();
 
-    // Check duplicate
-    $stmt = $pdo->prepare('SELECT id FROM users WHERE username = ? OR email = ?');
+    // Check duplicate (active users only — soft-deleted usernames are freed
+    // because soft delete renames them, see includes/trash.php)
+    $stmt = $pdo->prepare('SELECT id FROM users WHERE (username = ? OR email = ?) AND deleted_at IS NULL');
     $stmt->execute([$username, $email]);
     if ($stmt->fetch()) {
         return ['success' => false, 'message' => 'Username or email already taken.'];

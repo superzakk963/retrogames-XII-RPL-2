@@ -1,6 +1,7 @@
 <?php
 require_once '../includes/auth.php';
 require_once '../includes/db.php';
+require_once '../includes/trash.php';
 startSession();
 requireAdmin('../index.php');
 
@@ -19,14 +20,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if ($action === 'toggle') {
             $id = (int)$_POST['id'];
-            $pdo->prepare("UPDATE games SET is_active = 1 - is_active WHERE id=?")->execute([$id]);
+            $pdo->prepare("UPDATE games SET is_active = 1 - is_active WHERE id=? AND deleted_at IS NULL")->execute([$id]);
             setFlash('success', 'Game status toggled.');
+            header('Location: games.php'); exit;
+        }
+
+        if ($action === 'delete') {
+            $id = (int)$_POST['id'];
+            softDelete('games', $id);
+            setFlash('success', 'Game moved to Trash. You can restore it from the Trash page.');
             header('Location: games.php'); exit;
         }
     }
 }
 
-$games = $pdo->query("SELECT g.*, (SELECT COUNT(*) FROM scores s WHERE s.game_id=g.id) AS total_scores FROM games g ORDER BY sort_order ASC")->fetchAll();
+$games = $pdo->query("SELECT g.*, (SELECT COUNT(*) FROM scores s WHERE s.game_id=g.id AND s.deleted_at IS NULL) AS total_scores FROM games g WHERE g.deleted_at IS NULL ORDER BY sort_order ASC")->fetchAll();
 
 include '../includes/header.php';
 ?>
@@ -39,6 +47,7 @@ include '../includes/header.php';
             <a href="users.php">Users</a>
             <a href="games.php" class="active">Games</a>
             <a href="scores.php">Scores</a>
+            <a href="trash.php">🗑 Trash</a>
         </nav>
     </div>
 
@@ -71,6 +80,15 @@ include '../includes/header.php';
                             <input type="hidden" name="id" value="<?= $g['id'] ?>">
                             <button type="submit" class="btn btn-xs btn-warning">
                                 <?= $g['is_active'] ? 'Hide' : 'Show' ?>
+                            </button>
+                        </form>
+                        <form method="POST" style="display:inline">
+                            <input type="hidden" name="csrf_token" value="<?= csrfToken() ?>">
+                            <input type="hidden" name="action" value="delete">
+                            <input type="hidden" name="id" value="<?= $g['id'] ?>">
+                            <button type="submit" class="btn btn-xs btn-danger"
+                                    onclick="return confirm('Delete game <?= sanitize($g['name']) ?>? It will be moved to the Trash and can be restored.')">
+                                Delete
                             </button>
                         </form>
                     </td>

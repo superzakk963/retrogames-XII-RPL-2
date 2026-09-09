@@ -64,7 +64,7 @@ $scores = $pdo->prepare("
            SUM(s.duration) AS total_time
     FROM scores s
     JOIN games g ON s.game_id = g.id
-    WHERE s.user_id = ?
+    WHERE s.user_id = ? AND s.deleted_at IS NULL AND g.deleted_at IS NULL
     GROUP BY s.game_id
     ORDER BY best_score DESC
 ");
@@ -76,7 +76,7 @@ $recentScores = $pdo->prepare("
     SELECT s.score, s.level, s.duration, s.created_at, g.name AS game_name, g.slug
     FROM scores s
     JOIN games g ON s.game_id = g.id
-    WHERE s.user_id = ?
+    WHERE s.user_id = ? AND s.deleted_at IS NULL AND g.deleted_at IS NULL
     ORDER BY s.created_at DESC
     LIMIT 20
 ");
