@@ -16,7 +16,13 @@ $currentPage = basename($_SERVER['PHP_SELF']);
     <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap"
           onload="this.onload=null;this.rel='stylesheet'">
     <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap"></noscript>
-    <link rel="stylesheet" href="<?= $cssPath ?? 'assets/style.css' ?>">
+    <?php
+    // Cache-busting: paksa browser ambil CSS baru setelah merge/deploy.
+    $cssHref = $cssPath ?? 'assets/style.css';
+    $cssFile = __DIR__ . '/../' . ltrim($cssHref, '/');
+    if (is_file($cssFile)) $cssHref .= '?v=' . filemtime($cssFile);
+    ?>
+    <link rel="stylesheet" href="<?= $cssHref ?>">
 </head>
 <body>
 

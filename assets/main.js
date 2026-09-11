@@ -87,9 +87,18 @@ document.querySelectorAll('.game-filter-tabs .tab').forEach(tab => {
 });
 
 // ─── Smooth scroll for anchor links ──────────────────────────────────────────
+// Hanya untuk link fragmen murni (href="#id"). Jangan sentuh href="#" atau URL game
+// seperti "games/snake.php" — querySelector() akan throw SyntaxError untuk itu.
 document.querySelectorAll('a[href^="#"]').forEach(anchor => {
     anchor.addEventListener('click', function (e) {
-        const target = document.querySelector(this.getAttribute('href'));
+        const href = this.getAttribute('href');
+        if (!href || href === '#' || href.length < 2) return;
+        let target = null;
+        try {
+            target = document.querySelector(href);
+        } catch (err) {
+            return;
+        }
         if (target) {
             e.preventDefault();
             target.scrollIntoView({ behavior: 'smooth', block: 'start' });

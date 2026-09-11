@@ -15,6 +15,12 @@
     </div>
 </footer>
 
-<script src="<?= $jsPath ?? 'assets/main.js' ?>"></script>
+<?php
+// Cache-busting: paksa browser ambil main.js baru setelah merge (fix tombol Preview yang "mati" karena cache lama).
+$jsSrc = $jsPath ?? 'assets/main.js';
+$jsFile = __DIR__ . '/../' . ltrim($jsSrc, '/');
+if (is_file($jsFile)) $jsSrc .= '?v=' . filemtime($jsFile);
+?>
+<script src="<?= $jsSrc ?>"></script>
 </body>
 </html>
