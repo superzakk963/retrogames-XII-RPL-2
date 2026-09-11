@@ -234,3 +234,120 @@ document.addEventListener('keydown', e => {
 // ─── Show flash on logout-style success ──────────────────────────────────────
 // (handled server-side via .alert, kept here as hook for future use)
 
+// ─── Game preview modal (click card's Preview button -> modal, manual play) ──
+(function () {
+    const modal = document.getElementById('preview-modal');
+    if (!modal) return;
+
+    const video = document.getElementById('preview-modal-video');
+    const titleEl = document.getElementById('preview-modal-title');
+    const badgeEl = document.getElementById('preview-modal-badge');
+    const descEl = document.getElementById('preview-modal-desc');
+    const playNowLink = document.getElementById('preview-modal-playnow');
+    const playBtn = document.getElementById('preview-play-btn');
+    const muteBtn = document.getElementById('preview-mute-btn');
+
+    const ICON_UNMUTED = '<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M4 9v6h4l5 5V4L8 9H4z"/><path d="M16.5 12c0-1.6-.8-3-2-3.9v7.8c1.2-.9 2-2.3 2-3.9z"/><path d="M14.5 4.9v2.1c2 .9 3.5 3 3.5 5.5s-1.5 4.6-3.5 5.5v2.1c3.1-1 5.5-4 5.5-7.6s-2.4-6.6-5.5-7.6z"/></svg>';
+    const ICON_MUTED = '<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M4 9v6h4l5 5V4L8 9H4z"/><path d="M19.1 12l2.2-2.2-1.1-1.1L18 10.9l-2.2-2.2-1.1 1.1L16.9 12l-2.2 2.2 1.1 1.1L18 13.1l2.2 2.2 1.1-1.1L19.1 12z"/></svg>';
+
+    let preferMuted = false;
+
+    // Pastikan modal dalam keadaan tertutup begitu skrip ini jalan
+    closePreview();
+
+    function updateMuteIcon() {
+        muteBtn.innerHTML = video.muted ? ICON_MUTED : ICON_UNMUTED;
+        muteBtn.setAttribute('aria-pressed', String(video.muted));
+        muteBtn.setAttribute('aria-label', video.muted ? 'Unmute' : 'Mute');
+    }
+
+    function openPreview(data) {
+        video.pause();
+        video.removeAttribute('src');
+        video.load();
+        video.poster = data.poster || '';
+        video.src = data.video;
+        video.muted = preferMuted;
+        updateMuteIcon();
+
+        titleEl.textContent = data.title;
+        descEl.textContent = data.desc || '';
+        playNowLink.href = data.playUrl;
+
+        badgeEl.textContent = data.category ? data.category.charAt(0).toUpperCase() + data.category.slice(1) : '';
+        badgeEl.className = 'badge' + (data.category ? ' badge-' + data.category : '');
+
+        playBtn.classList.remove('hidden');
+
+        modal.style.display = '';
+        // paksa reflow biar transition opacity jalan mulus setelah display berubah
+        void modal.offsetWidth;
+        modal.classList.add('open');
+        modal.setAttribute('aria-hidden', 'false');
+        document.body.classList.add('modal-open');
+    }
+
+    function closePreview() {
+        modal.classList.remove('open');
+        modal.setAttribute('aria-hidden', 'true');
+        document.body.classList.remove('modal-open');
+
+        video.pause();
+        video.removeAttribute('src');
+        video.load();
+
+        // balikin ke display:none setelah animasi fade-out kelar
+        setTimeout(function () {
+            if (!modal.classList.contains('open')) modal.style.display = 'none';
+        }, 250);
+    }
+
+    document.querySelectorAll('[data-preview-video]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            openPreview({
+                video: btn.dataset.previewVideo,
+                poster: btn.dataset.previewPoster,
+                title: btn.dataset.previewTitle,
+                desc: btn.dataset.previewDesc,
+                category: btn.dataset.previewCategory,
+                playUrl: btn.dataset.previewPlay
+            });
+        });
+    });
+
+    modal.querySelectorAll('[data-preview-close]').forEach(function (el) {
+        el.addEventListener('click', closePreview);
+    });
+
+    playBtn.addEventListener('click', function () {
+        video.play();
+    });
+
+    muteBtn.addEventListener('click', function () {
+        video.muted = !video.muted;
+        preferMuted = video.muted;
+        updateMuteIcon();
+    });
+
+    video.addEventListener('play', function () {
+        playBtn.classList.add('hidden');
+    });
+    video.addEventListener('pause', function () {
+        if (!video.ended) {
+            playBtn.classList.remove('hidden');
+        }
+    });
+    video.addEventListener('ended', function () {
+        playBtn.classList.remove('hidden');
+    });
+
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && modal.classList.contains('open')) closePreview();
+    });
+
+    // Pastikan modal selalu tertutup begitu halaman ditampilkan — termasuk saat
+    // Chrome memulihkan halaman dari back/forward cache (bfcache), di mana
+    // 'load' tidak jalan lagi tapi DOM lama (termasuk modal yang sempat kebuka)
+    // bisa sekilas muncul lagi. 'pageshow' selalu jalan di kedua kasus.
+    window.addEventListener('pageshow', closePreview);
+})();
