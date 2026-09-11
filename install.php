@@ -35,7 +35,9 @@ try {
             `is_active` TINYINT(1) NOT NULL DEFAULT 1,
             `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
             `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            `last_login` DATETIME DEFAULT NULL
+            `last_login` DATETIME DEFAULT NULL,
+            `deleted_at` DATETIME DEFAULT NULL COMMENT 'soft delete / recycle bin',
+            KEY `idx_users_deleted` (`deleted_at`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     ");
 
@@ -52,7 +54,9 @@ try {
             `is_active` TINYINT(1) NOT NULL DEFAULT 1,
             `sort_order` INT NOT NULL DEFAULT 0,
             `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            `deleted_at` DATETIME DEFAULT NULL COMMENT 'soft delete / recycle bin',
+            KEY `idx_games_deleted` (`deleted_at`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     ");
 
@@ -66,14 +70,16 @@ try {
             `level` INT UNSIGNED DEFAULT NULL,
             `duration` INT UNSIGNED DEFAULT NULL COMMENT 'seconds',
             `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE,
-            FOREIGN KEY (`game_id`) REFERENCES `games`(`id`) ON DELETE CASCADE,
+            `deleted_at` DATETIME DEFAULT NULL COMMENT 'soft delete / recycle bin',
+            INDEX `idx_scores_deleted` (`deleted_at`),
+            FOREIGN KEY (`user_id`) REFERENCES `users`(`id`),
+            FOREIGN KEY (`game_id`) REFERENCES `games`(`id`),
             INDEX `idx_user_game` (`user_id`, `game_id`),
             INDEX `idx_game_score` (`game_id`, `score` DESC)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     ");
 
-    // Leaderboard view (top score per user per game)
+    // Leaderboard view (top score per user per game, excludes soft-deleted rows)
     $pdo->exec("
         CREATE OR REPLACE VIEW `leaderboard` AS
         SELECT s.game_id, s.user_id, MAX(s.score) AS best_score,
@@ -81,6 +87,9 @@ try {
         FROM scores s
         JOIN users u ON s.user_id = u.id
         JOIN games g ON s.game_id = g.id
+        WHERE s.deleted_at IS NULL
+          AND u.deleted_at IS NULL
+          AND g.deleted_at IS NULL
         GROUP BY s.game_id, s.user_id;
     ");
 
@@ -94,20 +103,6 @@ try {
             `ended_at` DATETIME DEFAULT NULL,
             FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE,
             FOREIGN KEY (`game_id`) REFERENCES `games`(`id`) ON DELETE CASCADE
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-    ");
-
-    // Announcements table
-    $pdo->exec("
-        CREATE TABLE IF NOT EXISTS `announcements` (
-            `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-            `title` VARCHAR(200) NOT NULL,
-            `content` TEXT NOT NULL,
-            `is_active` TINYINT(1) NOT NULL DEFAULT 1,
-            `created_by` INT UNSIGNED NOT NULL,
-            `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            FOREIGN KEY (`created_by`) REFERENCES `users`(`id`) ON DELETE CASCADE
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     ");
 

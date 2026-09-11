@@ -6,8 +6,8 @@ startSession();
 $pageTitle = 'Home';
 $pdo = getDB();
 
-// Fetch active games
-$games = $pdo->query("SELECT * FROM games WHERE is_active = 1 ORDER BY sort_order ASC")->fetchAll();
+// Fetch active games (defensive deleted_at filter; games are permanent content)
+$games = $pdo->query("SELECT * FROM games WHERE is_active = 1 AND deleted_at IS NULL ORDER BY sort_order ASC")->fetchAll();
 
 // Games that currently have a preview video (assets/videos/<slug>.mp4)
 $previewVideos = [

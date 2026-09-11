@@ -19,14 +19,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if ($action === 'toggle') {
             $id = (int)$_POST['id'];
-            $pdo->prepare("UPDATE games SET is_active = 1 - is_active WHERE id=?")->execute([$id]);
+            $pdo->prepare("UPDATE games SET is_active = 1 - is_active WHERE id=? AND deleted_at IS NULL")->execute([$id]);
             setFlash('success', 'Game status toggled.');
             header('Location: games.php'); exit;
         }
+        // NOTE: no delete action here on purpose — games are the app's built-in
+        // content and their PHP files live in /games regardless of the DB row.
+        // Deleting a DB row would leave a broken link. Use Hide/Show instead.
     }
 }
 
-$games = $pdo->query("SELECT g.*, (SELECT COUNT(*) FROM scores s WHERE s.game_id=g.id) AS total_scores FROM games g ORDER BY sort_order ASC")->fetchAll();
+$games = $pdo->query("SELECT g.*, (SELECT COUNT(*) FROM scores s WHERE s.game_id=g.id AND s.deleted_at IS NULL) AS total_scores FROM games g WHERE g.deleted_at IS NULL ORDER BY sort_order ASC")->fetchAll();
 
 include '../includes/header.php';
 ?>
@@ -39,6 +42,7 @@ include '../includes/header.php';
             <a href="users.php">Users</a>
             <a href="games.php" class="active">Games</a>
             <a href="scores.php">Scores</a>
+            <a href="trash.php">🗑 Trash</a>
         </nav>
     </div>
 

@@ -209,17 +209,6 @@ textarea { resize: vertical; min-height: 80px; }
 .hero-actions { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
 .hero-welcome { font-size: 1.05rem; color: var(--accent2); font-weight: 600; }
 
-/* ── Announcements ───────────────────────────────────── */
-#announcements { margin-bottom: 40px; }
-#announcements h2 { margin-bottom: 16px; font-size:1.4rem; }
-.announcement-card {
-    background: var(--surface); border: 1px solid var(--border);
-    border-left: 4px solid var(--primary); border-radius: var(--radius);
-    padding: 18px 20px; margin-bottom: 14px;
-}
-.announcement-card h3 { font-size: 1.05rem; margin-bottom: 8px; }
-.announcement-card small { color: var(--text-dim); font-size: 0.8rem; }
-
 /* ── Games Grid ──────────────────────────────────────── */
 #game-list h2, #mini-leaderboard h2 { font-size: 1.5rem; margin-bottom: 20px; }
 .games-grid {
@@ -643,18 +632,6 @@ body::before {
     position: absolute; inset: 0;
     background: linear-gradient(180deg, transparent 60%, rgba(0,0,0,0.6) 100%);
     pointer-events: none;
-}
-
-/* ── Announcements ─────────────────────────────────── */
-.announcement-card {
-    backdrop-filter: blur(8px);
-    background: linear-gradient(145deg, rgba(30,30,64,0.85), rgba(18,18,43,0.85));
-    transition: transform .3s, border-left-color .3s, box-shadow .3s;
-}
-.announcement-card:hover {
-    transform: translateX(4px);
-    border-left-color: var(--accent);
-    box-shadow: 0 6px 20px rgba(0,0,0,0.4);
 }
 
 /* ── Auth card ─────────────────────────────────────── */
@@ -1322,16 +1299,27 @@ input:focus, select:focus, textarea:focus {
     padding: 24px 26px;
 }
 
-/* ── Announcements polish ──────────────────────────── */
-#announcements {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-lg);
-    padding: 24px 26px;
-    margin-bottom: 32px;
+/* ── Recycle Bin (soft delete) ─────────────────────── */
+.row-deleted {
+    opacity: 0.65;
+    background: rgba(255, 100, 100, 0.05);
 }
-#announcements h2 { margin-bottom: 16px; }
-.announcement-card:last-child { margin-bottom: 0; }
+
+.row-deleted td {
+    text-decoration: line-through;
+    text-decoration-color: rgba(255, 100, 100, 0.4);
+}
+
+.row-deleted td .btn,
+.row-deleted td form,
+.row-deleted td .action-cell {
+    text-decoration: none;
+}
+
+.trash-actions {
+    margin-bottom: 24px;
+    text-align: right;
+}
 
 /* ── Leaderboard page tidier ───────────────────────── */
 #leaderboard-section {
@@ -1368,7 +1356,6 @@ input:focus, select:focus, textarea:focus {
     .profile-edit,
     .profile-password,
     .leaderboard-game-section,
-    #announcements,
     #mini-leaderboard,
     .game-header { padding: 18px 16px; }
     #hero { padding: 48px 16px 40px; }

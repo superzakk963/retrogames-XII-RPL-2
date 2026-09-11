@@ -1,6 +1,7 @@
 <?php
 require_once '../includes/auth.php';
 require_once '../includes/db.php';
+require_once '../includes/trash.php';
 startSession();
 requireAdmin('../index.php');
 
@@ -10,15 +11,21 @@ $jsPath  = '../assets/main.js';
 $homePath = '../';
 $pdo = getDB();
 
-// Stats
-$totalUsers  = $pdo->query("SELECT COUNT(*) FROM users WHERE role='user'")->fetchColumn();
-$totalAdmins = $pdo->query("SELECT COUNT(*) FROM users WHERE role='admin'")->fetchColumn();
-$totalScores = $pdo->query("SELECT COUNT(*) FROM scores")->fetchColumn();
-$totalGames  = $pdo->query("SELECT COUNT(*) FROM games WHERE is_active=1")->fetchColumn();
+// Stats (exclude recycle-bin rows)
+$totalUsers  = $pdo->query("SELECT COUNT(*) FROM users WHERE role='user' AND deleted_at IS NULL")->fetchColumn();
+$totalAdmins = $pdo->query("SELECT COUNT(*) FROM users WHERE role='admin' AND deleted_at IS NULL")->fetchColumn();
+$totalScores = $pdo->query("SELECT COUNT(*) FROM scores WHERE deleted_at IS NULL")->fetchColumn();
+$totalGames  = $pdo->query("SELECT COUNT(*) FROM games WHERE is_active=1 AND deleted_at IS NULL")->fetchColumn();
+
+// Recycle bin counter for the nav badge.
+// Also runs the throttled auto-purge (items older than 30 days) at most once
+// per hour, then re-counts so the badge stays accurate.
+autoPurgeTrash();
+$trashTotal = array_sum(trashCounts());
 
 $recentUsers = $pdo->query("
     SELECT id, username, email, role, is_active, created_at
-    FROM users ORDER BY created_at DESC LIMIT 5
+    FROM users WHERE deleted_at IS NULL ORDER BY created_at DESC LIMIT 5
 ")->fetchAll();
 
 $recentScores = $pdo->query("
@@ -26,6 +33,7 @@ $recentScores = $pdo->query("
     FROM scores s
     JOIN users u ON s.user_id = u.id
     JOIN games g ON s.game_id = g.id
+    WHERE s.deleted_at IS NULL AND u.deleted_at IS NULL AND g.deleted_at IS NULL
     ORDER BY s.created_at DESC LIMIT 10
 ")->fetchAll();
 
@@ -46,6 +54,7 @@ include '../includes/header.php';
             <a href="users.php">Users</a>
             <a href="games.php">Games</a>
             <a href="scores.php">Scores</a>
+            <a href="trash.php">🗑 Trash (<?= $trashTotal ?>)</a>
         </nav>
     </div>
 

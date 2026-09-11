@@ -22,7 +22,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['game_slug'])) {
         exit;
     }
 
-    $stmt = $pdo->prepare("SELECT id FROM games WHERE slug = ? AND is_active = 1");
+    $stmt = $pdo->prepare("SELECT id FROM games WHERE slug = ? AND is_active = 1 AND deleted_at IS NULL");
     $stmt->execute([$gameSlug]);
     $game = $stmt->fetch();
 
@@ -46,10 +46,10 @@ $pageTitle = 'Leaderboard';
 $pdo = getDB();
 
 $selectedGame = $_GET['game'] ?? 'all';
-$games = $pdo->query("SELECT * FROM games WHERE is_active = 1 ORDER BY sort_order")->fetchAll();
+$games = $pdo->query("SELECT * FROM games WHERE is_active = 1 AND deleted_at IS NULL ORDER BY sort_order")->fetchAll();
 
 if ($selectedGame !== 'all') {
-    $game = $pdo->prepare("SELECT * FROM games WHERE slug = ?");
+    $game = $pdo->prepare("SELECT * FROM games WHERE slug = ? AND deleted_at IS NULL");
     $game->execute([$selectedGame]);
     $game = $game->fetch();
     if (!$game) $selectedGame = 'all';

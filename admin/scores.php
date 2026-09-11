@@ -1,6 +1,7 @@
 <?php
 require_once '../includes/auth.php';
 require_once '../includes/db.php';
+require_once '../includes/trash.php';
 startSession();
 requireAdmin('../index.php');
 
@@ -20,23 +21,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if ($action === 'delete') {
             $id = (int)$_POST['id'];
-            $pdo->prepare("DELETE FROM scores WHERE id=?")->execute([$id]);
-            setFlash('success', 'Score deleted.');
+            $n = softDelete('scores', $id);
+            setFlash('success', $n ? 'Score moved to Trash.' : 'Score not found.');
             header('Location: scores.php'); exit;
         }
 
         if ($action === 'delete_user_game') {
             $uid = (int)$_POST['user_id'];
             $gid = (int)$_POST['game_id'];
-            $pdo->prepare("DELETE FROM scores WHERE user_id=? AND game_id=?")->execute([$uid, $gid]);
-            setFlash('success', 'All scores for that user/game deleted.');
+            $n = softDeleteWhere('scores', ['user_id' => $uid, 'game_id' => $gid]);
+            setFlash('success', $n . ' score(s) for that user/game moved to Trash.');
             header('Location: scores.php'); exit;
         }
 
         if ($action === 'delete_all_game') {
             $gid = (int)$_POST['game_id'];
-            $pdo->prepare("DELETE FROM scores WHERE game_id=?")->execute([$gid]);
-            setFlash('success', 'All scores for that game deleted.');
+            $n = softDeleteWhere('scores', ['game_id' => $gid]);
+            setFlash('success', $n . ' score(s) for that game moved to Trash.');
             header('Location: scores.php'); exit;
         }
     }
@@ -49,13 +50,13 @@ $page       = max(1, (int)($_GET['page'] ?? 1));
 $perPage    = 30;
 $offset     = ($page - 1) * $perPage;
 
-$where  = ['1=1'];
+$where  = ['s.deleted_at IS NULL', 'u.deleted_at IS NULL', 'g.deleted_at IS NULL']; // exclude recycle-bin rows
 $params = [];
 if ($gameFilter) { $where[] = 's.game_id = ?'; $params[] = $gameFilter; }
 if ($userSearch) { $where[] = 'u.username LIKE ?'; $params[] = "%$userSearch%"; }
 $whereStr = implode(' AND ', $where);
 
-$total = $pdo->prepare("SELECT COUNT(*) FROM scores s JOIN users u ON s.user_id=u.id WHERE $whereStr");
+$total = $pdo->prepare("SELECT COUNT(*) FROM scores s JOIN users u ON s.user_id=u.id JOIN games g ON s.game_id=g.id WHERE $whereStr");
 $total->execute($params);
 $total = $total->fetchColumn();
 $totalPages = ceil($total / $perPage);
@@ -74,9 +75,9 @@ $scores = $pdo->prepare("
 $scores->execute($params);
 $scores = $scores->fetchAll();
 
-$games = $pdo->query("SELECT id, name FROM games ORDER BY sort_order")->fetchAll();
+$games = $pdo->query("SELECT id, name FROM games WHERE deleted_at IS NULL ORDER BY sort_order")->fetchAll();
 
-// Stats per game
+// Stats per game (trash-aware: count only live scores, list only live games)
 $gameStats = $pdo->query("
     SELECT g.name, g.id,
            COUNT(s.id) AS total_scores,
@@ -84,7 +85,8 @@ $gameStats = $pdo->query("
            AVG(s.score) AS avg_score,
            COUNT(DISTINCT s.user_id) AS unique_players
     FROM games g
-    LEFT JOIN scores s ON s.game_id = g.id
+    LEFT JOIN scores s ON s.game_id = g.id AND s.deleted_at IS NULL
+    WHERE g.deleted_at IS NULL
     GROUP BY g.id
     ORDER BY g.sort_order
 ")->fetchAll();
@@ -100,6 +102,7 @@ include '../includes/header.php';
             <a href="users.php">Users</a>
             <a href="games.php">Games</a>
             <a href="scores.php" class="active">Scores</a>
+            <a href="trash.php">🗑 Trash</a>
         </nav>
     </div>
 
@@ -182,7 +185,7 @@ include '../includes/header.php';
                             <input type="hidden" name="action" value="delete">
                             <input type="hidden" name="id" value="<?= $s['id'] ?>">
                             <button type="submit" class="btn btn-xs btn-danger"
-                                    onclick="return confirm('Delete this score record?')">Del</button>
+                                    onclick="return confirm('Delete this score record? It will be moved to the Trash and can be restored.')">Del</button>
                         </form>
                     </td>
                 </tr>

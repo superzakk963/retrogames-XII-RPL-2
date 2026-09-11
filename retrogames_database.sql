@@ -30,9 +30,11 @@ CREATE TABLE IF NOT EXISTS `users` (
   `created_at` DATETIME         NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` DATETIME         NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `last_login` DATETIME         DEFAULT NULL,
+  `deleted_at` DATETIME         DEFAULT NULL COMMENT 'soft delete / recycle bin',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_username` (`username`),
-  UNIQUE KEY `uq_email`    (`email`)
+  UNIQUE KEY `uq_email`    (`email`),
+  KEY `idx_users_deleted` (`deleted_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 2.2 games
@@ -48,8 +50,10 @@ CREATE TABLE IF NOT EXISTS `games` (
   `sort_order`   INT           NOT NULL DEFAULT 0,
   `created_at`   DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at`   DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `deleted_at`   DATETIME      DEFAULT NULL COMMENT 'soft delete / recycle bin',
   PRIMARY KEY (`id`),
-  UNIQUE KEY `uq_slug` (`slug`)
+  UNIQUE KEY `uq_slug` (`slug`),
+  KEY `idx_games_deleted` (`deleted_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 2.3 scores
@@ -61,11 +65,13 @@ CREATE TABLE IF NOT EXISTS `scores` (
   `level`      INT UNSIGNED DEFAULT NULL,
   `duration`   INT UNSIGNED DEFAULT NULL COMMENT 'seconds',
   `created_at` DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `deleted_at` DATETIME     DEFAULT NULL COMMENT 'soft delete / recycle bin',
   PRIMARY KEY (`id`),
   KEY `idx_user_game`  (`user_id`, `game_id`),
   KEY `idx_game_score` (`game_id`, `score` DESC),
-  CONSTRAINT `fk_scores_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `fk_scores_game` FOREIGN KEY (`game_id`) REFERENCES `games` (`id`) ON DELETE CASCADE
+  KEY `idx_scores_deleted` (`deleted_at`),
+  CONSTRAINT `fk_scores_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`),
+  CONSTRAINT `fk_scores_game` FOREIGN KEY (`game_id`) REFERENCES `games` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 2.4 game_sessions
@@ -82,23 +88,10 @@ CREATE TABLE IF NOT EXISTS `game_sessions` (
   CONSTRAINT `fk_gs_game` FOREIGN KEY (`game_id`) REFERENCES `games` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 2.5 announcements
-CREATE TABLE IF NOT EXISTS `announcements` (
-  `id`         INT UNSIGNED  NOT NULL AUTO_INCREMENT,
-  `title`      VARCHAR(200)  NOT NULL,
-  `content`    TEXT          NOT NULL,
-  `is_active`  TINYINT(1)    NOT NULL DEFAULT 1,
-  `created_by` INT UNSIGNED  NOT NULL,
-  `created_at` DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`),
-  KEY `idx_ann_active` (`is_active`, `created_at`),
-  CONSTRAINT `fk_ann_user` FOREIGN KEY (`created_by`) REFERENCES `users` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
 -- ── 3. View ──────────────────────────────────────────────────
 
 -- leaderboard: best score per user per game
+-- (excludes soft-deleted users, games, and scores)
 CREATE OR REPLACE VIEW `leaderboard` AS
   SELECT
     s.game_id,
@@ -110,6 +103,9 @@ CREATE OR REPLACE VIEW `leaderboard` AS
   FROM   `scores` s
   JOIN   `users`  u ON s.user_id = u.id
   JOIN   `games`  g ON s.game_id = g.id
+  WHERE  s.deleted_at IS NULL
+    AND  u.deleted_at IS NULL
+    AND  g.deleted_at IS NULL
   GROUP  BY s.game_id, s.user_id;
 
 -- ── 4. Seed data ─────────────────────────────────────────────
@@ -120,7 +116,7 @@ INSERT IGNORE INTO `users` (`username`, `email`, `password`, `role`)
 VALUES (
   'admin',
   'admin@retrogames.com',
-  '$2y$10$r4dP53ycEPJF24Va.26.SOU9OEum05Ef.Ziw2fsGCqYYGpqA45.zK', -- admin123
+  '$2y$10$Ta.3t4mxnDzf03De6culF.uU/Ho1JfA0/eApvVoDit7h9JslK/zRe', -- admin123
   'admin'
 );
 
@@ -157,15 +153,6 @@ VALUES
    'Arrange falling blocks to complete lines. Classic puzzle action!',
    'Arrow keys to move/rotate. Down to drop faster. Space for hard drop.',
    'puzzle', 6);
-
--- 4.3 Welcome announcement (authored by admin — id will be 1)
-INSERT IGNORE INTO `announcements` (`title`, `content`, `is_active`, `created_by`)
-VALUES (
-  'Welcome to RetroGames! 🎮',
-  'Welcome aboard! Enjoy 6 classic arcade games, compete on the leaderboard, and have fun. Register an account to save your scores.',
-  1,
-  1
-);
 
 SET foreign_key_checks = 1;
 

@@ -4,7 +4,7 @@ $myBest = 0;
 if (isLoggedIn()) {
     try {
         $pdo = getDB();
-        $stmt = $pdo->prepare("SELECT MAX(s.score) AS best FROM scores s JOIN games g ON s.game_id = g.id WHERE s.user_id = ? AND g.slug = 'tetris'");
+        $stmt = $pdo->prepare("SELECT MAX(s.score) AS best FROM scores s JOIN games g ON s.game_id = g.id WHERE s.user_id = ? AND g.slug = 'tetris' AND s.deleted_at IS NULL");
         $stmt->execute([$_SESSION['user_id']]);
         $row = $stmt->fetch();
         $myBest = $row['best'] ?? 0;
