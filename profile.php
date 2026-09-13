@@ -55,7 +55,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     }
 }
 
-// Fetch user scores grouped by game
+// Per-game playtime (from game_sessions, capped by server)
 $playtimeStmt = $pdo->prepare("
     SELECT g.name AS game_name, g.slug,
            SUM(gs.duration) AS playtime
@@ -67,16 +67,24 @@ $playtimeStmt = $pdo->prepare("
 $playtimeStmt->execute([$_SESSION['user_id']]);
 $playtimeByGame = array_column($playtimeStmt->fetchAll(), 'playtime', 'slug');
 
-/** Format seconds as e.g. "2h 05m", "45m 30s", "42s" */
-function formatPlaytime(?float $seconds): string {
-    if ($seconds === null || $seconds <= 0) return '0s';
-    $s = (int)$seconds;
-    $h = intdiv($s, 3600);
-    $m = intdiv($s % 3600, 60);
+/**
+ * Format seconds as a human-readable string.
+ * e.g. "2 jam 15 menit 30 detik", "5 menit", "42 detik", "0 detik".
+ */
+function formatPlaytime($seconds): string {
+    if ($seconds === null || (float)$seconds <= 0) return '0 detik';
+    $s   = (int)$seconds;
+    $h   = intdiv($s, 3600);
+    $m   = intdiv($s % 3600, 60);
     $sec = $s % 60;
-    if ($h > 0) return $h . 'h ' . str_pad((string)$m, 2, '0', STR_PAD_LEFT) . 'm';
-    if ($m > 0) return $m . 'm ' . str_pad((string)$sec, 2, '0', STR_PAD_LEFT) . 's';
-    return $sec . 's';
+
+    $parts = [];
+    if ($h > 0)   $parts[] = $h . ' jam';
+    if ($m > 0)   $parts[] = $m . ' menit';
+    if ($sec > 0) $parts[] = $sec . ' detik';
+
+    // Non-zero seconds always produce at least one part
+    return implode(' ', $parts) ?: '0 detik';
 }
 
 // Fetch user scores grouped by game
@@ -94,6 +102,10 @@ $scores = $pdo->prepare("
 ");
 $scores->execute([$_SESSION['user_id']]);
 $userScores = $scores->fetchAll();
+
+// Lifetime playtime from users table (kept in sync by api/playtime.php).
+// Falls back to the per-game sum if the column is missing (pre-migration DB).
+$totalPlaytime = $currentUser['total_playtime'] ?? array_sum($playtimeByGame);
 
 // Fetch recent scores
 $recentScores = $pdo->prepare("
@@ -162,7 +174,7 @@ include 'includes/header.php';
                 <span class="stat-label">Total Games Played</span>
             </div>
             <div class="stat-card">
-                <span class="stat-value"><?= formatPlaytime(array_sum($playtimeByGame)) ?></span>
+                <span class="stat-value"><?= formatPlaytime($totalPlaytime) ?></span>
                 <span class="stat-label">Total Playtime</span>
             </div>
             <div class="stat-card">
