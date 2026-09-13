@@ -38,6 +38,12 @@ if (isLoggedIn()) {
   .life-dot{width:12px;height:12px;background:#fbbf24;border-radius:50% 50% 50% 0;clip-path:polygon(50% 0%,100% 38%,100% 100%,0% 100%,0% 38%);transform:rotate(45deg);box-shadow:0 0 8px #fbbf24}
   .life-dot.lost{background:#1a1100;box-shadow:none}
 
+  /* Playtime widget */
+  #playtime-widget{position:fixed;bottom:14px;left:14px;z-index:18;display:flex;align-items:center;gap:7px;background:rgba(20,14,0,.8);border:1px solid color-mix(in srgb,var(--pt-accent,#fbbf24) 35%,transparent);border-radius:40px;padding:6px 14px;pointer-events:none;backdrop-filter:blur(10px);font-family:'Share Tech Mono','Orbitron',monospace}
+  #playtime-widget .pt-icon{font-size:11px;filter:drop-shadow(0 0 6px var(--pt-accent,#fbbf24))}
+  #playtime-widget .pt-label{font-size:8px;letter-spacing:2px;color:color-mix(in srgb,var(--pt-accent,#fbbf24) 55%,transparent);text-transform:uppercase}
+  #playtime-widget .pt-value{font-size:12px;font-weight:700;letter-spacing:1px;color:var(--pt-accent,#fbbf24);text-shadow:0 0 10px color-mix(in srgb,var(--pt-accent,#fbbf24) 60%,transparent);min-width:38px;text-align:right}
+
   #canvas-wrap{position:relative;line-height:0;border-radius:6px;box-shadow:0 0 60px rgba(56,100,255,.25),0 0 120px rgba(56,100,255,.1),inset 0 0 30px rgba(0,0,0,.8)}
   canvas{display:block;border-radius:4px;image-rendering:pixelated}
 
@@ -123,6 +129,7 @@ if (isLoggedIn()) {
 </div>
 <div id="countdown"></div>
 
+<script src="../assets/playtime.js"></script>
 <script>
 const LOGGED_IN = <?= isLoggedIn() ? 'true' : 'false' ?>;
 const SAVE_URL = '../api/save_score.php';
@@ -279,6 +286,7 @@ function startGame(){
   lastTime=performance.now();
   getAudio();
   runCountdown(() => {
+    if(window.Playtime)Playtime.onGameStart();
     animId=requestAnimationFrame(loop);
   });
 }
@@ -313,9 +321,11 @@ function togglePause(){
     resumeBtn.style.display = 'block';
     showOverlay();
     cancelAnimationFrame(animId);
+    if(window.Playtime)Playtime.onGamePause();
   } else {
     hideOverlay();
     runCountdown(() => {
+      if(window.Playtime)Playtime.onGameResume();
       lastTime=performance.now();
       animId=requestAnimationFrame(loop);
     });
@@ -478,6 +488,7 @@ function levelUp(){
 
 function endGame(){
   running=false; cancelAnimationFrame(animId);
+  if(window.Playtime)Playtime.onGameEnd();
   if(score>bestScore) {
     bestScore=score;
     document.getElementById('hud-best').textContent = bestScore.toLocaleString();
@@ -663,6 +674,9 @@ resize();
 
 ctx.fillStyle='#000814'; ctx.fillRect(0,0,CW,CH);
 updateHUD();
+</script>
+<script>
+if (window.Playtime) Playtime.init({ game: 'pacman', url: '../api/playtime.php', loggedIn: LOGGED_IN, accent: '#fbbf24' });
 </script>
 </body>
 </html>

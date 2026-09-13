@@ -44,6 +44,11 @@ html,body{ width:100vw;height:100vh;overflow:hidden; background:#050212;font-fam
 #nav-home a{color:rgba(192,132,252,.6);text-decoration:none;font-size:10px;letter-spacing:2px;font-family:'Share Tech Mono',monospace}
 #nav-home a:hover{color:var(--purple)}
 #game-ctrl{ position:fixed;bottom:14px;right:14px;z-index:20;display:flex;gap:8px; }
+/* Playtime widget */
+#playtime-widget{position:fixed;bottom:14px;left:14px;z-index:18;display:flex;align-items:center;gap:7px;background:var(--panel);border:1px solid color-mix(in srgb,var(--pt-accent,#c084fc) 35%,transparent);border-radius:40px;padding:6px 14px;pointer-events:none;backdrop-filter:blur(10px);font-family:'Share Tech Mono','Orbitron',monospace}
+#playtime-widget .pt-icon{font-size:11px;filter:drop-shadow(0 0 6px var(--pt-accent,#c084fc))}
+#playtime-widget .pt-label{font-size:8px;letter-spacing:2px;color:color-mix(in srgb,var(--pt-accent,#c084fc) 55%,transparent);text-transform:uppercase}
+#playtime-widget .pt-value{font-size:12px;font-weight:700;letter-spacing:1px;color:var(--pt-accent,#c084fc);text-shadow:0 0 10px color-mix(in srgb,var(--pt-accent,#c084fc) 60%,transparent);min-width:38px;text-align:right}
 .ctrl-btn{ background:var(--panel);border:1px solid var(--border); color:rgba(192,132,252,.8);padding:7px 16px;border-radius:40px; cursor:pointer;font-size:9px;font-weight:700;letter-spacing:2px; transition:all .18s;text-transform:uppercase; font-family:'Orbitron',monospace;backdrop-filter:blur(10px); }
 .ctrl-btn:hover{background:rgba(192,132,252,.1);border-color:var(--purple);color:var(--purple);box-shadow:var(--glow)}
 #keys-hint{ position:fixed;bottom:18px;left:50%;transform:translateX(-50%); color:rgba(255,255,255,.1);font-size:8px;letter-spacing:1px; pointer-events:none;white-space:nowrap;font-family:'Share Tech Mono',monospace;z-index:10; }
@@ -86,6 +91,7 @@ html,body{ width:100vw;height:100vh;overflow:hidden; background:#050212;font-fam
   <div style="display:flex; gap:12px; flex-wrap:wrap; justify-content:center;"><a href="../index.php" class="btn-start" style="text-decoration:none; display:inline-flex; align-items:center; gap:8px;" onclick="if(gameRunning && score > 0) saveScore(score, level, Math.floor((Date.now()-startTime)/1000))">← BACK</a><button class="btn-start" id="startBtn">▶ START GAME</button><button class="btn-start" id="resumeBtn" style="display:none">RESUME</button></div>
 </div>
 <div id="countdown"></div>
+<script src="../assets/playtime.js"></script>
 <script>
 const LOGGED_IN=<?= isLoggedIn()?'true':'false' ?>;
 const SAVE_URL = '../api/save_score.php';
@@ -168,7 +174,7 @@ function startGame(){
   document.getElementById('pauseBtn').textContent='⏸ PAUSE';
   document.getElementById('combo-display').style.opacity='0';
   updateHUD(); drawNext();
-  runCountdown(() => { lastDrop=performance.now(); animId=requestAnimationFrame(gameLoop); });
+  runCountdown(() => { if(window.Playtime)Playtime.onGameStart(); lastDrop=performance.now(); animId=requestAnimationFrame(gameLoop); });
 }
 function togglePause(){
   if(!gameRunning || isCountingDown) return;
@@ -176,11 +182,12 @@ function togglePause(){
   const btn=document.getElementById('pauseBtn'), overlay = document.getElementById('overlay'), title = document.getElementById('overlayTitle'), msg = document.getElementById('ov-msg'), lvls = document.getElementById('lvlSelectors'), startBtn = document.getElementById('startBtn'), resumeBtn = document.getElementById('resumeBtn');
   if(!paused){
     overlay.style.display='none';
-    runCountdown(() => { lastDrop=performance.now(); animId=requestAnimationFrame(gameLoop); });
+    runCountdown(() => { if(window.Playtime)Playtime.onGameResume(); lastDrop=performance.now(); animId=requestAnimationFrame(gameLoop); });
     btn.textContent='⏸ PAUSE';
   }else{
     cancelAnimationFrame(animId);
     btn.textContent='▶ RESUME';
+    if(window.Playtime)Playtime.onGamePause();
     title.textContent = 'PAUSED';
     msg.textContent = 'Permainan dihentikan sejenak';
     lvls.style.display = 'none';
@@ -212,6 +219,7 @@ function spawnLineClear(){ for(let i=0;i<40;i++){ const a=Math.random()*Math.PI*
 function flashScreen(){ const f=document.getElementById('flash'); f.style.opacity='1'; setTimeout(()=>f.style.opacity='0',80); }
 function endGame(){
   gameRunning=false; cancelAnimationFrame(animId);
+  if(window.Playtime)Playtime.onGameEnd();
   const dur=Math.floor((Date.now()-startTime)/1000);
   document.getElementById('ov-msg').innerHTML=`GAME OVER<br>Score: <strong style="color:#c084fc;font-size:18px">${score.toLocaleString()}</strong>&nbsp;•&nbsp; Level: ${level} &nbsp;•&nbsp; Lines: ${lines}`;
   document.getElementById('startBtn').style.display=''; document.getElementById('startBtn').textContent='▶ MAIN LAGI';
@@ -280,6 +288,9 @@ document.addEventListener('keydown',e=>{
 document.getElementById('startBtn').onclick=startGame;
 document.getElementById('resumeBtn').onclick=togglePause;
 resize(); ctx.fillStyle='#07031a'; ctx.fillRect(0,0,W,H);
+</script>
+<script>
+if (window.Playtime) Playtime.init({ game: 'tetris', url: '../api/playtime.php', loggedIn: LOGGED_IN, accent: '#c084fc' });
 </script>
 </body>
 </html>

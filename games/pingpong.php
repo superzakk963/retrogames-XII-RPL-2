@@ -69,6 +69,10 @@ html,body{width:100vw;height:100vh;overflow:hidden;background:#030810;font-famil
   font-family:'Share Tech Mono',monospace;
 }
 @keyframes mpPulse{from{box-shadow:0 0 6px var(--gold)}to{box-shadow:0 0 22px var(--gold),0 0 50px rgba(255,213,79,.25)}}
+#playtime-widget{bottom:70px;right:18px;left:auto;background:var(--panel);border-color:rgba(79,195,247,.35)}
+#playtime-widget .pt-label{color:rgba(79,195,247,.55)}
+#playtime-widget .pt-value{color:var(--blue);text-shadow:0 0 10px rgba(79,195,247,.6)}
+#playtime-widget .pt-icon{filter:drop-shadow(0 0 6px var(--blue))}
 #lb{
   position:fixed;bottom:18px;left:18px;z-index:18;
   background:var(--panel);border:1px solid var(--border);
@@ -236,6 +240,7 @@ header, nav, footer, .navbar, .site-header, .site-footer,
   <div style="display:flex; gap:12px; flex-wrap:wrap; justify-content:center;"><a href="../index.php" class="btn-start" style="text-decoration:none; display:inline-flex; align-items:center; gap:8px;">← BACK</a><button class="btn-start" id="startBtn">▶ START GAME</button><button class="btn-start" id="resumeBtn" style="display:none">RESUME</button></div>
 </div>
 <div id="countdown"></div>
+<script src="../assets/playtime.js"></script>
 <script>
 const LOGGED_IN=<?= isLoggedIn()?'true':'false' ?>;
 const SAVE_URL='../api/save_score.php';
@@ -302,7 +307,7 @@ function startGame(){
   document.getElementById('match-point').style.display='none';
   document.getElementById('pauseBtn').textContent='⏸ PAUSE';
   getAudio();
-  runCountdown(() => { lastTime=performance.now(); animId=requestAnimationFrame(loop); }, 800);
+  runCountdown(() => { if(window.Playtime)Playtime.onGameStart(); lastTime=performance.now(); animId=requestAnimationFrame(loop); }, 800);
 }
 function togglePause(){
   if(!gameRunning || isCountingDown)return;
@@ -310,11 +315,12 @@ function togglePause(){
   const btn=document.getElementById('pauseBtn'), overlay = document.getElementById('overlay'), title = document.getElementById('overlayTitle'), msg = document.getElementById('ov-msg'), modeSel = document.getElementById('modeSelector'), cpuOpts = document.getElementById('cpu-only-options'), startBtn = document.getElementById('startBtn'), resumeBtn = document.getElementById('resumeBtn');
   if(!paused){
     overlay.style.display='none';
-    runCountdown(() => { lastTime=performance.now(); animId=requestAnimationFrame(loop); }, 800);
+    runCountdown(() => { if(window.Playtime)Playtime.onGameResume(); lastTime=performance.now(); animId=requestAnimationFrame(loop); }, 800);
     btn.textContent='⏸ PAUSE';
   } else {
     cancelAnimationFrame(animId);
     btn.textContent='▶ RESUME';
+    if(window.Playtime)Playtime.onGamePause();
     title.textContent = 'PAUSED';
     msg.textContent='Permainan dihentikan sejenak';
     modeSel.style.display = 'none'; cpuOpts.style.display = 'none'; startBtn.style.display = 'none'; resumeBtn.style.display = 'inline-flex';
@@ -375,6 +381,7 @@ function checkMatchPoint(){
 function spawnSparks(cx,cy,color,n=12){ for(let i=0;i<n;i++){ const a=Math.random()*Math.PI*2,sp=(2+Math.random()*6)*scaleF; particles.push({x:cx,y:cy,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,life:1,color,size:(1.5+Math.random()*3)*scaleF}); } }
 function endGame(winner){
   gameRunning=false;cancelAnimationFrame(animId);
+  if(window.Playtime)Playtime.onGameEnd();
   document.getElementById('match-point').style.display='none';
   const dur=Math.floor((Date.now()-startTime)/1000), winScore=score1;
   const winTxt=(matchMode==='endless') ? (score1 >= 10 ? 'SKOR LUAR BIASA! 🌟' : 'PERMAINAN BERAKHIR') : (winner===1 ?(mode==='2p'?'PLAYER 1 MENANG! 🏆':'KAMU MENANG! 🏆') :(mode==='2p'?'PLAYER 2 MENANG! 🏆':'CPU MENANG! 🤖'));
@@ -445,6 +452,9 @@ function drawPaddle(x,y,top,bot,glowCol){ ctx.shadowBlur=18;ctx.shadowColor=glow
 document.getElementById('startBtn').onclick=startGame;
 document.getElementById('resumeBtn').onclick=togglePause;
 drawIdle();
+</script>
+<script>
+if (window.Playtime) Playtime.init({ game: 'pingpong', url: '../api/playtime.php', loggedIn: <?= isLoggedIn()?'true':'false' ?>, accent: '#4fc3f7' });
 </script>
 </body>
 </html>

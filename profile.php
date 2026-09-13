@@ -55,6 +55,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     }
 }
 
+// Per-game playtime (from game_sessions, capped by server)
+$playtimeStmt = $pdo->prepare("
+    SELECT g.name AS game_name, g.slug,
+           SUM(gs.duration) AS playtime
+    FROM game_sessions gs
+    JOIN games g ON gs.game_id = g.id
+    WHERE gs.user_id = ? AND gs.duration IS NOT NULL AND g.deleted_at IS NULL
+    GROUP BY gs.game_id
+");
+$playtimeStmt->execute([$_SESSION['user_id']]);
+$playtimeByGame = array_column($playtimeStmt->fetchAll(), 'playtime', 'slug');
+
+/**
+ * Format seconds as a human-readable string.
+ * e.g. "2 jam 15 menit 30 detik", "5 menit", "42 detik", "0 detik".
+ */
+function formatPlaytime($seconds): string {
+    if ($seconds === null || (float)$seconds <= 0) return '0 detik';
+    $s   = (int)$seconds;
+    $h   = intdiv($s, 3600);
+    $m   = intdiv($s % 3600, 60);
+    $sec = $s % 60;
+
+    $parts = [];
+    if ($h > 0)   $parts[] = $h . ' jam';
+    if ($m > 0)   $parts[] = $m . ' menit';
+    if ($sec > 0) $parts[] = $sec . ' detik';
+
+    // Non-zero seconds always produce at least one part
+    return implode(' ', $parts) ?: '0 detik';
+}
+
 // Fetch user scores grouped by game
 $scores = $pdo->prepare("
     SELECT g.name AS game_name, g.slug,
@@ -70,6 +102,10 @@ $scores = $pdo->prepare("
 ");
 $scores->execute([$_SESSION['user_id']]);
 $userScores = $scores->fetchAll();
+
+// Lifetime playtime from users table (kept in sync by api/playtime.php).
+// Falls back to the per-game sum if the column is missing (pre-migration DB).
+$totalPlaytime = $currentUser['total_playtime'] ?? array_sum($playtimeByGame);
 
 // Fetch recent scores
 $recentScores = $pdo->prepare("
@@ -138,6 +174,10 @@ include 'includes/header.php';
                 <span class="stat-label">Total Games Played</span>
             </div>
             <div class="stat-card">
+                <span class="stat-value"><?= formatPlaytime($totalPlaytime) ?></span>
+                <span class="stat-label">Total Playtime</span>
+            </div>
+            <div class="stat-card">
                 <span class="stat-value"><?= count($userScores) ?></span>
                 <span class="stat-label">Games Tried</span>
             </div>
@@ -161,6 +201,7 @@ include 'includes/header.php';
                     <th>Best Score</th>
                     <th>Avg Score</th>
                     <th>Plays</th>
+                    <th>Playtime</th>
                     <th>Rank</th>
                 </tr>
             </thead>
@@ -171,6 +212,7 @@ include 'includes/header.php';
                     <td><?= number_format($s['best_score']) ?></td>
                     <td><?= number_format($s['avg_score']) ?></td>
                     <td><?= number_format($s['total_plays']) ?></td>
+                    <td><?= formatPlaytime($playtimeByGame[$s['slug']] ?? null) ?></td>
                     <td>
                         <?php if (isset($rankByGame[$s['slug']])): ?>
                             #<?= $rankByGame[$s['slug']]['rank'] ?>
