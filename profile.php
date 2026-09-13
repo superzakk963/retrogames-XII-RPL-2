@@ -56,6 +56,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 }
 
 // Fetch user scores grouped by game
+$playtimeStmt = $pdo->prepare("
+    SELECT g.name AS game_name, g.slug,
+           SUM(gs.duration) AS playtime
+    FROM game_sessions gs
+    JOIN games g ON gs.game_id = g.id
+    WHERE gs.user_id = ? AND gs.duration IS NOT NULL AND g.deleted_at IS NULL
+    GROUP BY gs.game_id
+");
+$playtimeStmt->execute([$_SESSION['user_id']]);
+$playtimeByGame = array_column($playtimeStmt->fetchAll(), 'playtime', 'slug');
+
+/** Format seconds as e.g. "2h 05m", "45m 30s", "42s" */
+function formatPlaytime(?float $seconds): string {
+    if ($seconds === null || $seconds <= 0) return '0s';
+    $s = (int)$seconds;
+    $h = intdiv($s, 3600);
+    $m = intdiv($s % 3600, 60);
+    $sec = $s % 60;
+    if ($h > 0) return $h . 'h ' . str_pad((string)$m, 2, '0', STR_PAD_LEFT) . 'm';
+    if ($m > 0) return $m . 'm ' . str_pad((string)$sec, 2, '0', STR_PAD_LEFT) . 's';
+    return $sec . 's';
+}
+
+// Fetch user scores grouped by game
 $scores = $pdo->prepare("
     SELECT g.name AS game_name, g.slug,
            MAX(s.score) AS best_score,
@@ -138,6 +162,10 @@ include 'includes/header.php';
                 <span class="stat-label">Total Games Played</span>
             </div>
             <div class="stat-card">
+                <span class="stat-value"><?= formatPlaytime(array_sum($playtimeByGame)) ?></span>
+                <span class="stat-label">Total Playtime</span>
+            </div>
+            <div class="stat-card">
                 <span class="stat-value"><?= count($userScores) ?></span>
                 <span class="stat-label">Games Tried</span>
             </div>
@@ -161,6 +189,7 @@ include 'includes/header.php';
                     <th>Best Score</th>
                     <th>Avg Score</th>
                     <th>Plays</th>
+                    <th>Playtime</th>
                     <th>Rank</th>
                 </tr>
             </thead>
@@ -171,6 +200,7 @@ include 'includes/header.php';
                     <td><?= number_format($s['best_score']) ?></td>
                     <td><?= number_format($s['avg_score']) ?></td>
                     <td><?= number_format($s['total_plays']) ?></td>
+                    <td><?= formatPlaytime($playtimeByGame[$s['slug']] ?? null) ?></td>
                     <td>
                         <?php if (isset($rankByGame[$s['slug']])): ?>
                             #<?= $rankByGame[$s['slug']]['rank'] ?>

@@ -239,6 +239,20 @@ require_once 'game_base.php';
         .btn-neon:hover { box-shadow: 0 0 24px rgba(255,58,45,0.5), inset 0 0 24px rgba(255,58,45,0.05); }
         .btn-neon:active { transform: scale(0.96); }
 
+        /* Playtime widget */
+        #playtime-widget {
+            position: fixed; bottom: 24px; left: 14px; z-index: 20;
+            display: flex; align-items: center; gap: 7px;
+            background: var(--card); backdrop-filter: blur(16px);
+            border: 1px solid color-mix(in srgb, var(--pt-accent, #ef4444) 35%, transparent);
+            border-radius: 40px; padding: 6px 14px;
+            pointer-events: none;
+            font-family: 'Share Tech Mono', 'Orbitron', monospace;
+        }
+        #playtime-widget .pt-icon { font-size: 11px; filter: drop-shadow(0 0 6px var(--pt-accent, #ef4444)); }
+        #playtime-widget .pt-label { font-size: 8px; letter-spacing: 2px; color: color-mix(in srgb, var(--pt-accent, #ef4444) 55%, transparent); text-transform: uppercase; }
+        #playtime-widget .pt-value { font-size: 12px; font-weight: 700; letter-spacing: 1px; color: var(--pt-accent, #ef4444); text-shadow: 0 0 10px color-mix(in srgb, var(--pt-accent, #ef4444) 60%, transparent); min-width: 38px; text-align: right; }
+
         #warningToast {
             position: fixed; bottom: 80px; left: 50%;
             transform: translateX(-50%) translateY(20px);
@@ -429,6 +443,7 @@ require_once 'game_base.php';
     <button id="pauseBtn">⏸ PAUSE</button>
 </div>
 
+<script src="../assets/playtime.js"></script>
 <script>
 const LOGGED_IN = <?= isLoggedIn() ? 'true' : 'false' ?>;
 const GAME_SLUG = 'car';
@@ -833,6 +848,7 @@ function loseLife() {
     if (lives <= 0) {
         gameRunning = false;
         if (animFrame) cancelAnimationFrame(animFrame);
+        if (window.Playtime) Playtime.onGameEnd();
         const finalScore = Math.floor(score);
         if (finalScore > highScore) {
             highScore = finalScore;
@@ -1056,6 +1072,7 @@ function startGame() {
     startTime = Date.now();
     document.getElementById('overlay').style.display = 'none';
     runCountdown(() => {
+        if (window.Playtime) Playtime.onGameStart();
         animFrame = requestAnimationFrame(gameLoop);
     });
 }
@@ -1073,6 +1090,7 @@ function togglePause() {
 
     if (paused) {
         title.textContent = 'PAUSED';
+        if (window.Playtime) Playtime.onGamePause();
         startBtn.style.display = 'none';
         resumeBtn.style.display = 'block';
         colorSel.style.display = 'none';
@@ -1083,6 +1101,7 @@ function togglePause() {
     } else {
         overlay.style.display = 'none';
         runCountdown(() => {
+            if (window.Playtime) Playtime.onGameResume();
             animFrame = requestAnimationFrame(gameLoop);
         });
     }
@@ -1124,6 +1143,8 @@ document.getElementById('newGameBtn').addEventListener('click', () => {
 });
 document.getElementById('pauseBtn').addEventListener('click', togglePause);
 document.getElementById('back-link').addEventListener('click', () => { if(gameRunning && score > 0) saveScore(score, null, Math.floor((Date.now() - startTime) / 1000)); });
+
+if (window.Playtime) Playtime.init({ game: 'car', url: '../api/playtime.php', loggedIn: LOGGED_IN, accent: '#ef4444' });
 document.querySelector('#nav a').addEventListener('click', () => { if(gameRunning && score > 0) saveScore(score, null, Math.floor((Date.now() - startTime) / 1000)); });
 document.getElementById('difficultySelect').addEventListener('change', (e) => { difficulty = e.target.value; });
 
