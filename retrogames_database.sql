@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS `users` (
   `created_at` DATETIME         NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` DATETIME         NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `last_login` DATETIME         DEFAULT NULL,
+  `total_playtime` INT UNSIGNED NOT NULL DEFAULT 0 COMMENT 'lifetime seconds played',
   `deleted_at` DATETIME         DEFAULT NULL COMMENT 'soft delete / recycle bin',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_username` (`username`),
@@ -81,8 +82,10 @@ CREATE TABLE IF NOT EXISTS `game_sessions` (
   `game_id`    INT UNSIGNED NOT NULL,
   `started_at` DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `ended_at`   DATETIME     DEFAULT NULL,
+  `duration`   INT UNSIGNED DEFAULT NULL COMMENT 'seconds actually played',
   PRIMARY KEY (`id`),
   KEY `idx_gs_user` (`user_id`),
+  KEY `idx_gs_duration` (`duration`),
   KEY `idx_gs_game` (`game_id`),
   CONSTRAINT `fk_gs_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
   CONSTRAINT `fk_gs_game` FOREIGN KEY (`game_id`) REFERENCES `games` (`id`) ON DELETE CASCADE

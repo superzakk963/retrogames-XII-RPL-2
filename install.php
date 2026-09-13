@@ -36,6 +36,7 @@ try {
             `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
             `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             `last_login` DATETIME DEFAULT NULL,
+            `total_playtime` INT UNSIGNED NOT NULL DEFAULT 0 COMMENT 'lifetime seconds played',
             `deleted_at` DATETIME DEFAULT NULL COMMENT 'soft delete / recycle bin',
             KEY `idx_users_deleted` (`deleted_at`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -93,7 +94,7 @@ try {
         GROUP BY s.game_id, s.user_id;
     ");
 
-    // Game sessions / activity log
+    // Game sessions / activity log (playtime tracking)
     $pdo->exec("
         CREATE TABLE IF NOT EXISTS `game_sessions` (
             `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -101,6 +102,8 @@ try {
             `game_id` INT UNSIGNED NOT NULL,
             `started_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
             `ended_at` DATETIME DEFAULT NULL,
+            `duration` INT UNSIGNED DEFAULT NULL COMMENT 'seconds actually played',
+            INDEX `idx_gs_duration` (`duration`),
             FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE,
             FOREIGN KEY (`game_id`) REFERENCES `games`(`id`) ON DELETE CASCADE
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

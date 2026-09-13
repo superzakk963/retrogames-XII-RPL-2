@@ -230,6 +230,11 @@ require_once 'game_base.php';
             z-index: 10; pointer-events: none; white-space: nowrap;
         }
 
+            #playtime-widget { bottom: 50px; left: 50%; transform: translateX(-50%); background: var(--card); border-color: rgba(0,255,136,.35); }
+            #playtime-widget .pt-label { color: rgba(0,255,136,.55); }
+            #playtime-widget .pt-value { color: var(--green); text-shadow: 0 0 10px rgba(0,255,136,.6); }
+            #playtime-widget .pt-icon { filter: drop-shadow(0 0 6px var(--green)); }
+
         #toast {
             position: fixed; top: 50%; left: 50%;
             transform: translate(-50%, -50%);
@@ -337,6 +342,7 @@ require_once 'game_base.php';
     <button class="ctrl-btn" id="pauseBtn" onclick="togglePause()">⏸ PAUSE</button>
 </div>
 
+<script src="../assets/playtime.js"></script>
 <script>
 const LOGGED_IN = <?= isLoggedIn() ? 'true' : 'false' ?>;
 const SAVE_URL = '../api/save_score.php';
@@ -494,6 +500,7 @@ function initGame() {
     document.getElementById('pauseBtn').textContent = '⏸ PAUSE';
     document.getElementById('overlay').style.display = 'none';
     runCountdown(() => {
+        if (window.Playtime) Playtime.onGameStart();
         lastStepTime = performance.now();
         gameInterval = setInterval(gameStep, stepDuration);
         animFrame = requestAnimationFrame(drawLoop);
@@ -538,6 +545,7 @@ function gameStep() {
 function endGame(isWin) {
     if (!gameActive) return;
     gameActive = false; clearInterval(gameInterval);
+    if (window.Playtime) Playtime.onGameEnd();
     isWin ? playWin() : playDie();
     const ox = (W - COLS*CELL)/2, oy = (H - ROWS*CELL)/2;
     snake.forEach((seg, i) => { setTimeout(() => { burst(seg.x*CELL+CELL/2+ox, seg.y*CELL+CELL/2+oy, snakeColor, 8); }, i * 15); });
@@ -645,8 +653,9 @@ function togglePause() {
     const overlay = document.getElementById('overlay'), title = document.getElementById('overlayTitle'), diffs = document.getElementById('diffSelectors'), colors = document.getElementById('colorSelectors'), startBtn = document.getElementById('startBtn'), resumeBtn = document.getElementById('resumeBtn');
     if (paused) {
         title.textContent = 'PAUSED'; diffs.style.display = 'none'; colors.style.display = 'none'; startBtn.style.display = 'none'; resumeBtn.style.display = 'block'; overlay.style.display = 'flex'; clearInterval(gameInterval);
+        if (window.Playtime) Playtime.onGamePause();
     } else {
-        overlay.style.display = 'none'; runCountdown(() => { lastStepTime = performance.now(); gameInterval = setInterval(gameStep, stepDuration); });
+        overlay.style.display = 'none'; runCountdown(() => { if (window.Playtime) Playtime.onGameResume(); lastStepTime = performance.now(); gameInterval = setInterval(gameStep, stepDuration); });
     }
     document.getElementById('pauseBtn').textContent = paused ? '▶ RESUME' : '⏸ PAUSE';
 }
@@ -684,6 +693,9 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
 })();
 
 resizeCanvas(); animFrame = requestAnimationFrame(drawLoop); document.getElementById('overlay').style.display = 'flex';
+</script>
+<script>
+if (window.Playtime) Playtime.init({ game: 'snake', url: '../api/playtime.php', loggedIn: LOGGED_IN, accent: '#00ff88' });
 </script>
 </div></div></section>
 </body>

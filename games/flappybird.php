@@ -80,6 +80,12 @@ canvas{max-width:100%;max-height:calc(100vh - 100px);width:auto!important;height
 
 /* Streak badge */
 #streak-badge{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);font-family:'Press Start 2P',monospace;font-size:18px;color:#fbbf24;text-shadow:0 0 20px #fbbf24;pointer-events:none;z-index:200;opacity:0;transition:opacity .2s}
+
+  /* Playtime widget */
+  #playtime-widget{position:fixed;bottom:14px;left:14px;z-index:18;display:flex;align-items:center;gap:7px;background:rgba(3,10,26,.8);border:1px solid color-mix(in srgb,var(--pt-accent,#38bdf8) 35%,transparent);border-radius:40px;padding:6px 14px;pointer-events:none;backdrop-filter:blur(10px);font-family:'Share Tech Mono','Orbitron',monospace}
+  #playtime-widget .pt-icon{font-size:11px;filter:drop-shadow(0 0 6px var(--pt-accent,#38bdf8))}
+  #playtime-widget .pt-label{font-size:8px;letter-spacing:2px;color:color-mix(in srgb,var(--pt-accent,#38bdf8) 55%,transparent);text-transform:uppercase}
+  #playtime-widget .pt-value{font-size:12px;font-weight:700;letter-spacing:1px;color:var(--pt-accent,#38bdf8);text-shadow:0 0 10px color-mix(in srgb,var(--pt-accent,#38bdf8) 60%,transparent);min-width:38px;text-align:right}
 #streak-badge.show{opacity:1;animation:streakPop .6s ease forwards}
 @keyframes streakPop{0%{transform:translate(-50%,-50%) scale(.6)}60%{transform:translate(-50%,-50%) scale(1.2)}100%{transform:translate(-50%,-50%) scale(1);opacity:0}}
 
@@ -165,6 +171,7 @@ canvas{max-width:100%;max-height:calc(100vh - 100px);width:auto!important;height
 <div id="streak-badge"></div>
 <div id="countdown"></div>
 
+<script src="../assets/playtime.js"></script>
 <script>
 const LOGGED_IN = <?= isLoggedIn() ? 'true' : 'false' ?>;
 const SAVE_URL = '../api/save_score.php';
@@ -309,6 +316,7 @@ function startGame(){
   document.getElementById('pauseBtn').style.display='block';
   getAudio();
   runCountdown(() => {
+    if (window.Playtime) Playtime.onGameStart();
     lastTs = performance.now();
     animId=requestAnimationFrame(loop);
   });
@@ -334,9 +342,11 @@ function togglePause() {
     resumeBtn.style.display = 'block';
     showOverlay();
     if (animId) cancelAnimationFrame(animId);
+    if (window.Playtime) Playtime.onGamePause();
   } else {
     hideOverlay();
     runCountdown(() => {
+      if (window.Playtime) Playtime.onGameResume();
       lastTs = performance.now();
       animId = requestAnimationFrame(loop);
     });
@@ -420,6 +430,7 @@ function update(dt){
 // ── End ───────────────────────────────────────────────────────────
 function endGame(){
   running=false; cancelAnimationFrame(animId);
+  if (window.Playtime) Playtime.onGameEnd();
   document.getElementById('pauseBtn').style.display='none';
   for(let i=0;i<35;i++){
     const a=Math.random()*Math.PI*2, sp=2+Math.random()*9;
@@ -613,6 +624,9 @@ document.getElementById('pauseBtn').onclick=togglePause;
 document.getElementById('back-link').onclick=()=>{if(running && score>0) saveScore(score);};
 
 ctx.fillStyle='#050a14'; ctx.fillRect(0,0,W,H);
+</script>
+<script>
+if (window.Playtime) Playtime.init({ game: 'flappybird', url: '../api/playtime.php', loggedIn: LOGGED_IN, accent: '#38bdf8' });
 </script>
 </body>
 </html>
