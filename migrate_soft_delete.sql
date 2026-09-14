@@ -1,8 +1,12 @@
 -- ============================================================
 --  RetroGames — Migration: Soft Delete / Recycle Bin
 --  Run ONCE on an EXISTING database (the one already installed).
+--  AFTER this, run migrate_playtime.sql (in that order).
+--  EASIEST PATH: just open install.php in the browser — it applies
+--  both migrations automatically (idempotent) via includes/schema.php.
 --  For fresh installs, just use retrogames_database.sql instead.
 --  Usage:  mysql -u root -p < migrate_soft_delete.sql
+--          mysql -u root -p < migrate_playtime.sql
 --  NOTE: if you run this twice you will get "Duplicate column
 --        name" errors — that is harmless, it means it's done.
 -- ============================================================

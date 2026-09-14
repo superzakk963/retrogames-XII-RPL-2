@@ -1,8 +1,13 @@
 -- ============================================================
 --  RetroGames — Migration: Playtime Timer / User Activity
 --  Run ONCE on an EXISTING database (the one already installed).
+--  PREREQUISITE: run migrate_soft_delete.sql FIRST (the backfill
+--  below filters on users.deleted_at).
+--  EASIEST PATH: just open install.php in the browser — it applies
+--  this migration automatically (idempotent) via includes/schema.php.
 --  For fresh installs, just use retrogames_database.sql instead.
---  Usage:  mysql -u root -p < migrate_playtime.sql
+--  Usage:  mysql -u root -p < migrate_soft_delete.sql
+--          mysql -u root -p < migrate_playtime.sql
 --  NOTE: if you run this twice you will get "Duplicate column
 --        name" errors — that is harmless, it means it's done.
 -- ============================================================

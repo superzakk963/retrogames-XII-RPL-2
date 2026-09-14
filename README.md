@@ -24,10 +24,18 @@ A retro arcade web app (PHP + MySQL) with 6 classic games, user accounts, leader
 
 1. Copy this folder into `C:\xampp\htdocs\retrogames`.
 2. Start **Apache** and **MySQL** from the XAMPP Control Panel.
-3. Create the database — pick ONE:
-   - **Fresh install**: open `http://localhost/retrogames/install.php`, or
-     import `retrogames_database.sql` via phpMyAdmin.
-   - **Existing database (pre-trash schema)**: import `migrate_soft_delete.sql`.
+3. Create / upgrade the database — pick ONE:
+   - **Recommended (fresh install AND existing old database)**: open
+     `http://localhost/retrogames/install.php`.
+     It creates missing tables AND auto-applies pending upgrades
+     (`deleted_at` soft-delete columns, `game_sessions.duration`,
+     `users.total_playtime`, trash-aware `leaderboard` view).
+     Safe to re-open after `git pull` — already-up-to-date DBs report
+     "no upgrades needed".
+   - **Manual fresh install**: import `retrogames_database.sql` via phpMyAdmin
+     (already contains all columns + view + seed data).
+   - **Manual upgrade of an existing database**: import IN THIS ORDER
+     `migrate_soft_delete.sql`, then `migrate_playtime.sql`.
      Safe to run once; re-running prints harmless "Duplicate column" errors.
 4. Default admin: **admin / admin123** — change the password immediately.
 5. Open `http://localhost/retrogames/`.
@@ -62,14 +70,16 @@ admin/        admin panel (dashboard, users, games, scores, trash.php)
 api/          JSON score-saving endpoint
 assets/       CSS + JS
 games/        game pages + game_base.php (shared game page logic)
-includes/     auth, db, trash.php (soft-delete helpers), header/footer
-install.php   one-time installer (delete after use!)
-*.sql         schema+seed (retrogames_database.sql) and migration (migrate_soft_delete.sql)
+includes/     auth, db, schema.php (idempotent upgrades), trash.php (soft-delete helpers), header/footer
+install.php   installer + auto-upgrader (safe to re-run, delete after use on production!)
+*.sql         schema+seed (retrogames_database.sql) and migrations
+              (migrate_soft_delete.sql, then migrate_playtime.sql)
 ```
 
 ## ⚠️ Notes / Limitations
 
-- `install.php` must be deleted after setup (it can recreate/repair the DB).
+- `install.php` is safe to re-run (seed inserts use `INSERT IGNORE` and schema
+  upgrades are idempotent), but still delete it on a public server after setup.
 - "Delete Forever" on a user also permanently removes their scores — the
   confirmation dialog warns about this.
 - Game sessions (`game_sessions` table) cascade with users via foreign keys.
@@ -98,10 +108,18 @@ Aplikasi web arcade retro (PHP + MySQL) dengan 6 game klasik, akun pengguna, lea
 
 1. Salin folder ini ke `C:\xampp\htdocs\retrogames`.
 2. Nyalakan **Apache** dan **MySQL** dari XAMPP Control Panel.
-3. Buat database — pilih salah satu:
-   - **Install baru**: buka `http://localhost/retrogames/install.php`, atau
-     import `retrogames_database.sql` lewat phpMyAdmin.
-   - **Database yang sudah ada (skema lama)**: import `migrate_soft_delete.sql`.
+3. Buat / upgrade database — pilih salah satu:
+   - **Disarankan (install baru MAUPUN database lama)**: buka
+     `http://localhost/retrogames/install.php`.
+     File ini membuat tabel yang belum ada DAN otomatis menerapkan upgrade
+     yang kurang (kolom soft-delete `deleted_at`, `game_sessions.duration`,
+     `users.total_playtime`, view `leaderboard` yang sadar trash).
+     Aman dibuka ulang setelah `git pull` — DB yang sudah terbaru akan
+     melaporkan "no upgrades needed".
+   - **Install baru manual**: import `retrogames_database.sql` lewat phpMyAdmin
+     (sudah berisi semua kolom + view + data awal).
+   - **Upgrade database lama manual**: import DENGAN URUTAN
+     `migrate_soft_delete.sql`, lalu `migrate_playtime.sql`.
      Cukup dijalankan sekali; kalau dijalankan dua kali akan muncul error
      "Duplicate column" yang tidak berbahaya.
 4. Admin bawaan: **admin / admin123** — segera ganti passwordnya.
@@ -137,14 +155,16 @@ admin/        panel admin (dashboard, users, games, scores, trash.php)
 api/          endpoint JSON penyimpanan skor
 assets/       CSS + JS
 games/        halaman game + game_base.php (logika bersama)
-includes/     auth, db, trash.php (helper soft delete), header/footer
-install.php   installer sekali pakai (hapus setelah dipakai!)
-*.sql         skema+seed (retrogames_database.sql) dan migrasi (migrate_soft_delete.sql)
+includes/     auth, db, schema.php (upgrade idempoten), trash.php (helper soft delete), header/footer
+install.php   installer + auto-upgrader (aman dijalankan ulang, hapus setelah dipakai di production!)
+*.sql         skema+seed (retrogames_database.sql) dan migrasi
+              (migrate_soft_delete.sql, lalu migrate_playtime.sql)
 ```
 
 ## ⚠️ Catatan / Keterbatasan
 
-- `install.php` wajib dihapus setelah instalasi (bisa membuat ulang/memperbaiki DB).
+- `install.php` aman dijalankan ulang (seed pakai `INSERT IGNORE` dan upgrade
+  skema idempoten), tapi tetap hapus di server publik setelah instalasi.
 - "Delete Forever" pada user juga menghapus permanen semua skornya —
   dialog konfirmasi sudah memperingatkan hal ini.
 - Data `game_sessions` ikut terhapus otomatis via foreign key saat user dihapus permanen.

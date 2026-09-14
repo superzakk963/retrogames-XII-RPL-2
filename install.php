@@ -1,6 +1,11 @@
 <?php
-// Run this file once to set up the database
-// Access: http://yourserver/retrogames/install.php
+// RetroGames installer + auto-upgrader.
+// Fresh clone: creates the database, tables, view, and seed data.
+// Existing (old) database: CREATE TABLE IF NOT EXISTS above is a no-op,
+//   so includes/schema.php brings it up to date automatically
+//   (same steps as migrate_soft_delete.sql + migrate_playtime.sql,
+//   but safe to re-run). Safe to open this file again after git pull.
+// Access: http://localhost/retrogames/install.php
 
 // Prevent re-running if already installed (basic guard)
 if (file_exists(__DIR__ . '/includes/db.php')) {
@@ -109,6 +114,14 @@ try {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     ");
 
+    // ── Auto-upgrade databases created by older versions ──────────
+    // CREATE TABLE IF NOT EXISTS above cannot add new columns to existing
+    // tables (that gap used to cause HTTP 500 on profile.php with
+    // "Unknown column 'gs.duration'"). ensureSchema() applies the same
+    // steps as migrate_soft_delete.sql + migrate_playtime.sql idempotently.
+    require_once __DIR__ . '/includes/schema.php';
+    $migrations = ensureSchema($pdo);
+
     // Insert default admin user (password: admin123)
     $adminPassword = password_hash('admin123', PASSWORD_BCRYPT);
     $adminStmt = $pdo->prepare(
@@ -136,6 +149,15 @@ try {
 
     echo "<h2>Installation Successful!</h2>";
     echo "<p>Database <strong>" . DB_NAME . "</strong> created with all tables.</p>";
+    if (!empty($migrations)) {
+        echo "<p>Upgrades applied to existing tables:</p><ul>";
+        foreach ($migrations as $m) {
+            echo "<li>" . htmlspecialchars($m) . "</li>";
+        }
+        echo "</ul>";
+    } else {
+        echo "<p>Schema already up to date — no upgrades needed.</p>";
+    }
     echo "<p>Default admin: <strong>admin / admin123</strong></p>";
     echo "<p><a href='index.php'>Go to Homepage</a> | <a href='admin/index.php'>Go to Admin Panel</a></p>";
     echo "<p style='color:red'><strong>SECURITY: Delete this install.php file after setup!</strong></p>";
