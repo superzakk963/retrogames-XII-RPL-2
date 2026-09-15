@@ -17,9 +17,13 @@
 
 <?php
 // Cache-busting: paksa browser ambil main.js baru setelah merge (fix tombol Preview yang "mati" karena cache lama).
+// Resolve href relatif terhadap direktori entry script, bukan includes/ —
+// lihat komentar yang sama di includes/header.php.
 $jsSrc = $jsPath ?? 'assets/main.js';
-$jsFile = __DIR__ . '/../' . ltrim($jsSrc, '/');
-if (is_file($jsFile)) $jsSrc .= '?v=' . filemtime($jsFile);
+$entryDir = dirname($_SERVER['SCRIPT_FILENAME'] ?? (__DIR__ . '/index.php'));
+if (is_file($entryDir . '/' . $jsSrc)) {
+    $jsSrc .= '?v=' . filemtime($entryDir . '/' . $jsSrc);
+}
 ?>
 <script src="<?= $jsSrc ?>"></script>
 </body>

@@ -18,9 +18,15 @@ $currentPage = basename($_SERVER['PHP_SELF']);
     <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap"></noscript>
     <?php
     // Cache-busting: paksa browser ambil CSS baru setelah merge/deploy.
+    // Resolve href relatif terhadap direktori script yang dijalankan (entry
+    // script), BUKAN includes/. Halaman di admin/ atau games/ memakai href
+    // '../assets/style.css' — kalau di-join dengan __DIR__.'/../' hasilnya
+    // keluar dari project root, is_file() gagal, dan ?v= hilang diam-diam.
     $cssHref = $cssPath ?? 'assets/style.css';
-    $cssFile = __DIR__ . '/../' . ltrim($cssHref, '/');
-    if (is_file($cssFile)) $cssHref .= '?v=' . filemtime($cssFile);
+    $entryDir = dirname($_SERVER['SCRIPT_FILENAME'] ?? (__DIR__ . '/index.php'));
+    if (is_file($entryDir . '/' . $cssHref)) {
+        $cssHref .= '?v=' . filemtime($entryDir . '/' . $cssHref);
+    }
     ?>
     <link rel="stylesheet" href="<?= $cssHref ?>">
 </head>

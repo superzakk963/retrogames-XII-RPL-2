@@ -2,7 +2,7 @@
 // DB constants can be pre-defined (e.g. by tests) to override the defaults.
 if (!defined('DB_HOST')) {
     define('DB_HOST', 'localhost');
-    define('DB_USER', 'root');
+    define('DB_USER', 'admin');
     define('DB_PASS', '');
     define('DB_NAME', 'retrogames');
     define('DB_PORT', '3306');

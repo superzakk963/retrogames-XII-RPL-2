@@ -206,6 +206,9 @@ document.querySelectorAll('.game-card').forEach(card => {
 
 // ─── Animated number counter for stat cards ──────────────────────────────────
 document.querySelectorAll('.stat-value').forEach(el => {
+    // Only animate pure numbers (e.g. "1,234"); clocks like "2:15:30" or
+    // any other formatted value must stay untouched.
+    if (!/^[\d,]+$/.test(el.textContent)) return;
     const raw = el.textContent.replace(/[^\d]/g, '');
     const target = parseInt(raw, 10);
     if (!Number.isFinite(target) || target <= 0 || target > 1e9) return;

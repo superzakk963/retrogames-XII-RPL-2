@@ -14,7 +14,7 @@ if (file_exists(__DIR__ . '/includes/db.php')) {
 } else {
     // Fallback: define constants here if db.php not present
     define('DB_HOST', 'localhost');
-    define('DB_USER', 'root');
+    define('DB_USER', 'admin');
     define('DB_PASS', '');
     define('DB_NAME', 'retrogames');
     define('DB_PORT', '3306');

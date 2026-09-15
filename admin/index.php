@@ -17,6 +17,45 @@ $totalAdmins = $pdo->query("SELECT COUNT(*) FROM users WHERE role='admin' AND de
 $totalScores = $pdo->query("SELECT COUNT(*) FROM scores WHERE deleted_at IS NULL")->fetchColumn();
 $totalGames  = $pdo->query("SELECT COUNT(*) FROM games WHERE is_active=1 AND deleted_at IS NULL")->fetchColumn();
 
+// Total playtime of ALL users across ALL games (seconds, from game_sessions).
+// Trash (soft-deleted) users are excluded from the aggregate.
+// Wrapped in try/catch: this runs BEFORE header.php, so an uncaught error here
+// would kill the page with zero output (blank / "unstyled" 500) instead of
+// just hiding this one stat card. Also auto-migrates an unmigrated DB.
+$totalPlaytimeSec = 0;
+try {
+    $totalPlaytimeSec = (int)$pdo->query("
+        SELECT COALESCE(SUM(gs.duration), 0)
+          FROM game_sessions gs
+          JOIN users u ON gs.user_id = u.id
+         WHERE gs.duration IS NOT NULL AND u.deleted_at IS NULL
+    ")->fetchColumn();
+} catch (PDOException $e) {
+    // Missing game_sessions.duration => DB not migrated yet. Run the idempotent
+    // schema upgrade (safe to call every time), then retry the query once.
+    require_once __DIR__ . '/../includes/schema.php';
+    try {
+        ensureSchema($pdo);
+        $totalPlaytimeSec = (int)$pdo->query("
+            SELECT COALESCE(SUM(gs.duration), 0)
+              FROM game_sessions gs
+              JOIN users u ON gs.user_id = u.id
+             WHERE gs.duration IS NOT NULL AND u.deleted_at IS NULL
+        ")->fetchColumn();
+    } catch (PDOException $e2) {
+        error_log('Admin playtime query failed: ' . $e2->getMessage());
+    }
+}
+
+/**
+ * Format seconds as an H:MM:SS clock (hours not capped at 24).
+ * e.g. 45 => "00:00:45", 8190 => "02:16:30", 90000 => "25:00:00".
+ */
+function formatPlaytimeClock($seconds): string {
+    $s = max(0, (int)$seconds);
+    return sprintf('%02d:%02d:%02d', intdiv($s, 3600), intdiv($s % 3600, 60), $s % 60);
+}
+
 // Recycle bin counter for the nav badge.
 // Also runs the throttled auto-purge (items older than 30 days) at most once
 // per hour, then re-counts so the badge stays accurate.
@@ -74,6 +113,10 @@ include '../includes/header.php';
         <div class="stat-card">
             <span class="stat-value"><?= number_format($totalScores) ?></span>
             <span class="stat-label">TOTAL GAMES PLAYED BY ADMIN/USER</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-value"><?= formatPlaytimeClock($totalPlaytimeSec) ?></span>
+            <span class="stat-label">Total Playtime (All Users)</span>
         </div>
     </div>
 
