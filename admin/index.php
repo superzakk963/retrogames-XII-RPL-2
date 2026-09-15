@@ -49,13 +49,14 @@ include '../includes/header.php';
 <section id="admin-section">
     <div class="admin-header">
         <h2>⚙️ Admin Dashboard</h2>
-        <nav class="admin-nav">
-            <a href="index.php" class="active">Dashboard</a>
-            <a href="users.php">Users</a>
-            <a href="games.php">Games</a>
-            <a href="scores.php">Scores</a>
-            <a href="trash.php">🗑 Trash (<?= $trashTotal ?>)</a>
-        </nav>
+       <nav class="admin-nav">
+    <a href="index.php" class="active">Dashboard</a>
+    <a href="users.php">Users</a>
+    <a href="games.php">Games</a>
+    <a href="scores.php">Scores</a>
+    <a href="trash.php">🗑 Trash (<?= $trashTotal ?>)</a>
+    <a href="backup_db.php">Backup Database</a>
+</nav>
     </div>
 
     <div class="stats-grid">
