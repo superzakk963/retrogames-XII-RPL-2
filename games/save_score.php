@@ -13,6 +13,8 @@ if (empty($_SESSION['user_id'])) {
 $gameSlug = $_POST['game_slug'] ?? '';
 $score    = (int)($_POST['score'] ?? 0);
 $level    = (int)($_POST['level'] ?? 1);
+// Durasi ronde ikut disimpan agar masuk total playtime gabungan.
+$duration = isset($_POST['duration']) ? min(86400, max(0, (int)$_POST['duration'])) : null;
 
 if ($gameSlug === '' || $score <= 0) {
     http_response_code(400);
@@ -22,7 +24,7 @@ if ($gameSlug === '' || $score <= 0) {
 $pdo = getDB();
 
 // Cari game_id dari slug
-$stmt = $pdo->prepare("SELECT id FROM games WHERE slug = ? AND is_active = 1");
+$stmt = $pdo->prepare("SELECT id FROM games WHERE slug = ? AND is_active = 1 AND deleted_at IS NULL");
 $stmt->execute([$gameSlug]);
 $game = $stmt->fetch();
 
@@ -31,12 +33,12 @@ if (!$game) {
     exit('Game not found');
 }
 
-// Simpan score (pastikan tabel scores punya kolom level, jika tidak hapus , level)
+// Simpan score beserta durasi (ikut ke total playtime gabungan via trigger)
 $stmt = $pdo->prepare("
-    INSERT INTO scores (user_id, game_id, score, level)
-    VALUES (?, ?, ?, ?)
+    INSERT INTO scores (user_id, game_id, score, level, duration)
+    VALUES (?, ?, ?, ?, ?)
 ");
-$stmt->execute([$_SESSION['user_id'], $game['id'], $score, $level]);
+$stmt->execute([$_SESSION['user_id'], $game['id'], $score, $level, $duration]);
 
 http_response_code(200);
 echo 'OK';

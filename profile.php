@@ -55,36 +55,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     }
 }
 
-// Per-game playtime (from game_sessions, capped by server)
+// Per-game playtime GABUNGAN: SUM(game_sessions.duration) + SUM(scores.duration)
+// per game. UNION ALL agar sesi pendek yang hanya tercatat di scores tetap
+// muncul di kolom Playtime tabel Best Scores by Game.
 $playtimeStmt = $pdo->prepare("
-    SELECT g.name AS game_name, g.slug,
-           SUM(gs.duration) AS playtime
-    FROM game_sessions gs
-    JOIN games g ON gs.game_id = g.id
-    WHERE gs.user_id = ? AND gs.duration IS NOT NULL AND g.deleted_at IS NULL
-    GROUP BY gs.game_id
+    SELECT g.slug, SUM(x.dur) AS playtime
+    FROM (
+        SELECT game_id, duration AS dur FROM game_sessions
+        WHERE user_id = ? AND duration IS NOT NULL
+        UNION ALL
+        SELECT game_id, duration AS dur FROM scores
+        WHERE user_id = ? AND duration IS NOT NULL AND deleted_at IS NULL
+    ) x
+    JOIN games g ON x.game_id = g.id
+    WHERE g.deleted_at IS NULL
+    GROUP BY x.game_id, g.slug
 ");
-$playtimeStmt->execute([$_SESSION['user_id']]);
+$playtimeStmt->execute([$_SESSION['user_id'], $_SESSION['user_id']]);
 $playtimeByGame = array_column($playtimeStmt->fetchAll(), 'playtime', 'slug');
 
 /**
- * Format seconds as a human-readable string.
- * e.g. "2 jam 15 menit 30 detik", "5 menit", "42 detik", "0 detik".
+ * Format seconds as an H:MM:SS clock (hours not capped at 24).
+ * Disamakan dengan admin agar konsisten, e.g. 45 => "00:00:45".
  */
 function formatPlaytime($seconds): string {
-    if ($seconds === null || (float)$seconds <= 0) return '0 detik';
-    $s   = (int)$seconds;
-    $h   = intdiv($s, 3600);
-    $m   = intdiv($s % 3600, 60);
-    $sec = $s % 60;
-
-    $parts = [];
-    if ($h > 0)   $parts[] = $h . ' jam';
-    if ($m > 0)   $parts[] = $m . ' menit';
-    if ($sec > 0) $parts[] = $sec . ' detik';
-
-    // Non-zero seconds always produce at least one part
-    return implode(' ', $parts) ?: '0 detik';
+    $s = max(0, (int)($seconds ?? 0));
+    return sprintf('%02d:%02d:%02d', intdiv($s, 3600), intdiv($s % 3600, 60), $s % 60);
 }
 
 // Fetch user scores grouped by game
@@ -103,9 +99,14 @@ $scores = $pdo->prepare("
 $scores->execute([$_SESSION['user_id']]);
 $userScores = $scores->fetchAll();
 
-// Lifetime playtime from users table (kept in sync by api/playtime.php).
-// Falls back to the per-game sum if the column is missing (pre-migration DB).
-$totalPlaytime = $currentUser['total_playtime'] ?? array_sum($playtimeByGame);
+// Lifetime playtime GABUNGAN dari users.total_playtime (dijaga oleh
+// api/playtime.php + api/save_score.php + trigger MySQL).
+// Fallback ke jumlah per-game bila kolom belum ada (pre-migration DB)
+// atau masih 0 sementara data sesi/skor sudah ada (DB lama belum backfill).
+$totalPlaytime = (int)($currentUser['total_playtime'] ?? 0);
+if ($totalPlaytime <= 0 && array_sum($playtimeByGame) > 0) {
+    $totalPlaytime = (int)array_sum($playtimeByGame);
+}
 
 // Fetch recent scores
 $recentScores = $pdo->prepare("
@@ -243,7 +244,7 @@ include 'includes/header.php';
                     <td><a href="games/<?= sanitize($s['slug']) ?>.php"><?= sanitize($s['game_name']) ?></a></td>
                     <td><?= number_format($s['score']) ?></td>
                     <td><?= $s['level'] ?? '-' ?></td>
-                    <td><?= $s['duration'] ? gmdate('i:s', $s['duration']) : '-' ?></td>
+                    <td><?= $s['duration'] ? formatPlaytime($s['duration']) : '-' ?></td>
                     <td><?= date('M d, Y H:i', strtotime($s['created_at'])) ?></td>
                 </tr>
                 <?php endforeach; ?>

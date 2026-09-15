@@ -108,6 +108,8 @@ try {
             `started_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
             `ended_at` DATETIME DEFAULT NULL,
             `duration` INT UNSIGNED DEFAULT NULL COMMENT 'seconds actually played',
+            INDEX `idx_gs_user` (`user_id`),
+            INDEX `idx_gs_game` (`game_id`),
             INDEX `idx_gs_duration` (`duration`),
             FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE,
             FOREIGN KEY (`game_id`) REFERENCES `games`(`id`) ON DELETE CASCADE

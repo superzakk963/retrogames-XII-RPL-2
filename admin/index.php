@@ -17,31 +17,41 @@ $totalAdmins = $pdo->query("SELECT COUNT(*) FROM users WHERE role='admin' AND de
 $totalScores = $pdo->query("SELECT COUNT(*) FROM scores WHERE deleted_at IS NULL")->fetchColumn();
 $totalGames  = $pdo->query("SELECT COUNT(*) FROM games WHERE is_active=1 AND deleted_at IS NULL")->fetchColumn();
 
-// Total playtime of ALL users across ALL games (seconds, from game_sessions).
-// Trash (soft-deleted) users are excluded from the aggregate.
+// Total playtime of ALL users across ALL games (seconds, GABUNGAN
+// game_sessions.duration + scores.duration agar sesi pendek yang belum
+// sempat heartbeat tetap kehitung dari durasi save_score).
+// Trash (soft-deleted users/games/scores) dikecualikan dari agregat.
 // Wrapped in try/catch: this runs BEFORE header.php, so an uncaught error here
 // would kill the page with zero output (blank / "unstyled" 500) instead of
 // just hiding this one stat card. Also auto-migrates an unmigrated DB.
+function adminTotalPlaytimeSec(PDO $pdo): int {
+    return (int)$pdo->query("
+        SELECT
+            (SELECT COALESCE(SUM(gs.duration), 0)
+               FROM game_sessions gs
+               JOIN users u ON gs.user_id = u.id
+              WHERE gs.duration IS NOT NULL AND u.deleted_at IS NULL)
+            +
+            (SELECT COALESCE(SUM(s.duration), 0)
+               FROM scores s
+               JOIN users u ON s.user_id = u.id
+               JOIN games g ON s.game_id = g.id
+              WHERE s.duration IS NOT NULL
+                AND s.deleted_at IS NULL
+                AND u.deleted_at IS NULL
+                AND g.deleted_at IS NULL)
+    ")->fetchColumn();
+}
 $totalPlaytimeSec = 0;
 try {
-    $totalPlaytimeSec = (int)$pdo->query("
-        SELECT COALESCE(SUM(gs.duration), 0)
-          FROM game_sessions gs
-          JOIN users u ON gs.user_id = u.id
-         WHERE gs.duration IS NOT NULL AND u.deleted_at IS NULL
-    ")->fetchColumn();
+    $totalPlaytimeSec = adminTotalPlaytimeSec($pdo);
 } catch (PDOException $e) {
-    // Missing game_sessions.duration => DB not migrated yet. Run the idempotent
+    // Missing columns => DB not migrated yet. Run the idempotent
     // schema upgrade (safe to call every time), then retry the query once.
     require_once __DIR__ . '/../includes/schema.php';
     try {
         ensureSchema($pdo);
-        $totalPlaytimeSec = (int)$pdo->query("
-            SELECT COALESCE(SUM(gs.duration), 0)
-              FROM game_sessions gs
-              JOIN users u ON gs.user_id = u.id
-             WHERE gs.duration IS NOT NULL AND u.deleted_at IS NULL
-        ")->fetchColumn();
+        $totalPlaytimeSec = adminTotalPlaytimeSec($pdo);
     } catch (PDOException $e2) {
         error_log('Admin playtime query failed: ' . $e2->getMessage());
     }

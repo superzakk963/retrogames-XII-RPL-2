@@ -96,6 +96,64 @@ function schemaRefreshLeaderboardView(PDO $pdo): void {
     );
 }
 
+function schemaTriggerExists(PDO $pdo, string $trigger): bool {
+    $stmt = $pdo->prepare(
+        'SELECT COUNT(*) FROM INFORMATION_SCHEMA.TRIGGERS
+          WHERE TRIGGER_SCHEMA = DATABASE() AND TRIGGER_NAME = ?'
+    );
+    $stmt->execute([$trigger]);
+    return (int)$stmt->fetchColumn() > 0;
+}
+
+/**
+ * Trigger jaga users.total_playtime = SUM(game_sessions.duration)
+ * + SUM(scores.duration) per user. Idempoten (DROP lalu CREATE).
+ * Dipakai fresh install (install.php / retrogames_database.sql) maupun
+ * upgrade DB lama via ensureSchema().
+ */
+function schemaEnsurePlaytimeTriggers(PDO $pdo): bool {
+    $created = false;
+    $recalcGs = "UPDATE `users` u SET u.`total_playtime` = "
+        . "(SELECT COALESCE(SUM(gs.`duration`), 0) FROM `game_sessions` gs "
+        . "WHERE gs.`user_id` = NEW.`user_id` AND gs.`duration` IS NOT NULL) + "
+        . "(SELECT COALESCE(SUM(s.`duration`), 0) FROM `scores` s "
+        . "WHERE s.`user_id` = NEW.`user_id` AND s.`duration` IS NOT NULL AND s.`deleted_at` IS NULL) "
+        . "WHERE u.`id` = NEW.`user_id`";
+    $recalcGsOld = str_replace('NEW.`user_id`', 'OLD.`user_id`', $recalcGs);
+    // Untuk AFTER UPDATE game_sessions: sinkronkan NEW dan (bila user berubah) OLD.
+    $recalcGsBoth = $recalcGs . '; '
+        . 'IF NOT (OLD.`user_id` <=> NEW.`user_id`) THEN ' . $recalcGsOld . '; END IF';
+    $recalcScores = $recalcGs;
+    $recalcScoresOld = $recalcGsOld;
+    $recalcScoresBoth = $recalcGsBoth;
+
+    $triggers = [
+        'trg_gs_after_insert' => "CREATE TRIGGER `trg_gs_after_insert` AFTER INSERT ON `game_sessions` "
+            . "FOR EACH ROW BEGIN {$recalcGs}; END",
+        'trg_gs_after_update' => "CREATE TRIGGER `trg_gs_after_update` AFTER UPDATE ON `game_sessions` "
+            . "FOR EACH ROW BEGIN {$recalcGsBoth}; END",
+        'trg_gs_after_delete' => "CREATE TRIGGER `trg_gs_after_delete` AFTER DELETE ON `game_sessions` "
+            . "FOR EACH ROW BEGIN "
+            . str_replace('NEW.`user_id`', 'OLD.`user_id`', $recalcGs) . "; END",
+        'trg_scores_after_insert' => "CREATE TRIGGER `trg_scores_after_insert` AFTER INSERT ON `scores` "
+            . "FOR EACH ROW BEGIN {$recalcScores}; END",
+        'trg_scores_after_update' => "CREATE TRIGGER `trg_scores_after_update` AFTER UPDATE ON `scores` "
+            . "FOR EACH ROW BEGIN {$recalcScoresBoth}; END",
+        'trg_scores_after_delete' => "CREATE TRIGGER `trg_scores_after_delete` AFTER DELETE ON `scores` "
+            . "FOR EACH ROW BEGIN "
+            . str_replace('NEW.`user_id`', 'OLD.`user_id`', $recalcScores) . "; END",
+    ];
+
+    foreach ($triggers as $name => $sql) {
+        // Selalu DROP + CREATE agar definisi lama (hanya SUM sessions)
+        // ikut ter-upgrade ke definisi gabungan yang baru.
+        $pdo->exec("DROP TRIGGER IF EXISTS `{$name}`");
+        $pdo->exec($sql);
+        $created = true;
+    }
+    return $created;
+}
+
 /**
  * Bring the current database up to date. Safe to call repeatedly.
  *
@@ -175,6 +233,12 @@ function ensureSchema(PDO $pdo): array {
     if (!schemaIndexExists($pdo, 'game_sessions', 'idx_gs_duration')) {
         $pdo->exec('ALTER TABLE `game_sessions` ADD KEY `idx_gs_duration` (`duration`)');
     }
+    if (!schemaIndexExists($pdo, 'game_sessions', 'idx_gs_user')) {
+        $pdo->exec('ALTER TABLE `game_sessions` ADD KEY `idx_gs_user` (`user_id`)');
+    }
+    if (!schemaIndexExists($pdo, 'game_sessions', 'idx_gs_game')) {
+        $pdo->exec('ALTER TABLE `game_sessions` ADD KEY `idx_gs_game` (`game_id`)');
+    }
 
     if (!schemaColumnExists($pdo, 'users', 'total_playtime')) {
         $pdo->exec(
@@ -185,7 +249,17 @@ function ensureSchema(PDO $pdo): array {
         $applied[] = 'users.total_playtime';
     }
 
-    // ── 3. Backfill (same best-effort logic as migrate_playtime.sql) ──
+    // ── 2b. Trigger gabungan sessions + scores ──
+    try {
+        schemaEnsurePlaytimeTriggers($pdo);
+        $applied[] = 'playtime triggers (sessions + scores -> users.total_playtime)';
+    } catch (Throwable $t) {
+        // Hak TRIGGER tidak ada di sebagian hosting: API tetap me-recalc
+        // manual tiap request, jadi ini non-fatal.
+        error_log('ensureSchema triggers skipped: ' . $t->getMessage());
+    }
+
+    // ── 3. Backfill (gabungan sessions + scores) ──
     // Only rows that still need it are touched, so re-runs are no-ops.
     $filled = (int)$pdo->exec(
         'UPDATE `game_sessions`
@@ -203,6 +277,12 @@ function ensureSchema(PDO $pdo): array {
                 FROM `game_sessions` gs
                WHERE gs.`user_id` = u.`id`
                  AND gs.`duration` IS NOT NULL
+            ) + (
+              SELECT COALESCE(SUM(s.`duration`), 0)
+                FROM `scores` s
+               WHERE s.`user_id` = u.`id`
+                 AND s.`duration` IS NOT NULL
+                 AND s.`deleted_at` IS NULL
             )
           WHERE u.`deleted_at` IS NULL'
     );

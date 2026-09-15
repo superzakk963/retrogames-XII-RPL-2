@@ -1,7 +1,7 @@
 <?php
 // api/save_score.php
-require_once '../includes/auth.php';
-require_once '../includes/db.php';
+require_once __DIR__ . '/../includes/auth.php';
+require_once __DIR__ . '/../includes/db.php';
 startSession();
 
 // Always output JSON; send header before any output
@@ -31,7 +31,8 @@ if (!is_array($input)) {
 $gameSlug = trim($input['game'] ?? '');
 $score    = filter_var($input['score'] ?? 0, FILTER_VALIDATE_INT, ['options' => ['min_range' => 0, 'max_range' => 99999999]]);
 $level    = isset($input['level'])    ? max(0, (int)$input['level'])    : null;
-$duration = isset($input['duration']) ? max(0, (int)$input['duration']) : null;
+// Durasi ronde (detik). Di-cap 24 jam agar request nakal tidak merusak total.
+$duration = isset($input['duration']) ? min(86400, max(0, (int)$input['duration'])) : null;
 
 // Validate score (filter_var returns false on failure)
 if (empty($gameSlug) || $score === false) {
@@ -55,8 +56,20 @@ if (!$game) {
 $pdo->prepare('INSERT INTO scores (user_id, game_id, score, level, duration) VALUES (?, ?, ?, ?, ?)')
     ->execute([$_SESSION['user_id'], $game['id'], $score, $level, $duration]);
 
-// Get user's best score for this game
-$bestStmt = $pdo->prepare('SELECT MAX(score) AS best FROM scores WHERE user_id = ? AND game_id = ?');
+// Sinkronkan lifetime total (gabungan sessions + scores). Idempoten —
+// hasilnya sama walau trigger MySQL juga aktif.
+$pdo->prepare('
+    UPDATE users u SET u.total_playtime = (
+        SELECT COALESCE(SUM(gs.duration), 0) FROM game_sessions gs
+        WHERE gs.user_id = u.id AND gs.duration IS NOT NULL
+    ) + (
+        SELECT COALESCE(SUM(s.duration), 0) FROM scores s
+        WHERE s.user_id = u.id AND s.duration IS NOT NULL AND s.deleted_at IS NULL
+    ) WHERE u.id = ?
+')->execute([$_SESSION['user_id']]);
+
+// Get user's best score for this game (abaikan skor di recycle bin)
+$bestStmt = $pdo->prepare('SELECT MAX(score) AS best FROM scores WHERE user_id = ? AND game_id = ? AND deleted_at IS NULL');
 $bestStmt->execute([$_SESSION['user_id'], $game['id']]);
 $best = (int)$bestStmt->fetchColumn();
 

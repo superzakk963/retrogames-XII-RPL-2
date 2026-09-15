@@ -111,6 +111,108 @@ CREATE OR REPLACE VIEW `leaderboard` AS
     AND  g.deleted_at IS NULL
   GROUP  BY s.game_id, s.user_id;
 
+-- ── 3b. Triggers ─────────────────────────────────────────────
+-- Keep users.total_playtime in sync automatically:
+--   total_playtime = SUM(game_sessions.duration) + SUM(scores.duration)
+-- per user (gabungan, soft-deleted scores dikecualikan).
+-- API (api/playtime.php + api/save_score.php) juga me-recalc manual
+-- tiap request, jadi trigger ini idempoten dan hanya pengaman.
+
+DROP TRIGGER IF EXISTS `trg_gs_after_insert`;
+DROP TRIGGER IF EXISTS `trg_gs_after_update`;
+DROP TRIGGER IF EXISTS `trg_gs_after_delete`;
+DROP TRIGGER IF EXISTS `trg_scores_after_insert`;
+DROP TRIGGER IF EXISTS `trg_scores_after_update`;
+DROP TRIGGER IF EXISTS `trg_scores_after_delete`;
+
+DELIMITER $$
+
+CREATE TRIGGER `trg_gs_after_insert` AFTER INSERT ON `game_sessions`
+FOR EACH ROW BEGIN
+  UPDATE `users` u SET u.`total_playtime` = (
+    SELECT COALESCE(SUM(gs.`duration`), 0) FROM `game_sessions` gs
+    WHERE gs.`user_id` = NEW.`user_id` AND gs.`duration` IS NOT NULL
+  ) + (
+    SELECT COALESCE(SUM(s.`duration`), 0) FROM `scores` s
+    WHERE s.`user_id` = NEW.`user_id` AND s.`duration` IS NOT NULL AND s.`deleted_at` IS NULL
+  ) WHERE u.`id` = NEW.`user_id`;
+END$$
+
+CREATE TRIGGER `trg_gs_after_update` AFTER UPDATE ON `game_sessions`
+FOR EACH ROW BEGIN
+  UPDATE `users` u SET u.`total_playtime` = (
+    SELECT COALESCE(SUM(gs.`duration`), 0) FROM `game_sessions` gs
+    WHERE gs.`user_id` = NEW.`user_id` AND gs.`duration` IS NOT NULL
+  ) + (
+    SELECT COALESCE(SUM(s.`duration`), 0) FROM `scores` s
+    WHERE s.`user_id` = NEW.`user_id` AND s.`duration` IS NOT NULL AND s.`deleted_at` IS NULL
+  ) WHERE u.`id` = NEW.`user_id`;
+  IF NOT (OLD.`user_id` <=> NEW.`user_id`) THEN
+    UPDATE `users` u SET u.`total_playtime` = (
+      SELECT COALESCE(SUM(gs.`duration`), 0) FROM `game_sessions` gs
+      WHERE gs.`user_id` = OLD.`user_id` AND gs.`duration` IS NOT NULL
+    ) + (
+      SELECT COALESCE(SUM(s.`duration`), 0) FROM `scores` s
+      WHERE s.`user_id` = OLD.`user_id` AND s.`duration` IS NOT NULL AND s.`deleted_at` IS NULL
+    ) WHERE u.`id` = OLD.`user_id`;
+  END IF;
+END$$
+
+CREATE TRIGGER `trg_gs_after_delete` AFTER DELETE ON `game_sessions`
+FOR EACH ROW BEGIN
+  UPDATE `users` u SET u.`total_playtime` = (
+    SELECT COALESCE(SUM(gs.`duration`), 0) FROM `game_sessions` gs
+    WHERE gs.`user_id` = OLD.`user_id` AND gs.`duration` IS NOT NULL
+  ) + (
+    SELECT COALESCE(SUM(s.`duration`), 0) FROM `scores` s
+    WHERE s.`user_id` = OLD.`user_id` AND s.`duration` IS NOT NULL AND s.`deleted_at` IS NULL
+  ) WHERE u.`id` = OLD.`user_id`;
+END$$
+
+CREATE TRIGGER `trg_scores_after_insert` AFTER INSERT ON `scores`
+FOR EACH ROW BEGIN
+  UPDATE `users` u SET u.`total_playtime` = (
+    SELECT COALESCE(SUM(gs.`duration`), 0) FROM `game_sessions` gs
+    WHERE gs.`user_id` = NEW.`user_id` AND gs.`duration` IS NOT NULL
+  ) + (
+    SELECT COALESCE(SUM(s.`duration`), 0) FROM `scores` s
+    WHERE s.`user_id` = NEW.`user_id` AND s.`duration` IS NOT NULL AND s.`deleted_at` IS NULL
+  ) WHERE u.`id` = NEW.`user_id`;
+END$$
+
+CREATE TRIGGER `trg_scores_after_update` AFTER UPDATE ON `scores`
+FOR EACH ROW BEGIN
+  UPDATE `users` u SET u.`total_playtime` = (
+    SELECT COALESCE(SUM(gs.`duration`), 0) FROM `game_sessions` gs
+    WHERE gs.`user_id` = NEW.`user_id` AND gs.`duration` IS NOT NULL
+  ) + (
+    SELECT COALESCE(SUM(s.`duration`), 0) FROM `scores` s
+    WHERE s.`user_id` = NEW.`user_id` AND s.`duration` IS NOT NULL AND s.`deleted_at` IS NULL
+  ) WHERE u.`id` = NEW.`user_id`;
+  IF NOT (OLD.`user_id` <=> NEW.`user_id`) THEN
+    UPDATE `users` u SET u.`total_playtime` = (
+      SELECT COALESCE(SUM(gs.`duration`), 0) FROM `game_sessions` gs
+      WHERE gs.`user_id` = OLD.`user_id` AND gs.`duration` IS NOT NULL
+    ) + (
+      SELECT COALESCE(SUM(s.`duration`), 0) FROM `scores` s
+      WHERE s.`user_id` = OLD.`user_id` AND s.`duration` IS NOT NULL AND s.`deleted_at` IS NULL
+    ) WHERE u.`id` = OLD.`user_id`;
+  END IF;
+END$$
+
+CREATE TRIGGER `trg_scores_after_delete` AFTER DELETE ON `scores`
+FOR EACH ROW BEGIN
+  UPDATE `users` u SET u.`total_playtime` = (
+    SELECT COALESCE(SUM(gs.`duration`), 0) FROM `game_sessions` gs
+    WHERE gs.`user_id` = OLD.`user_id` AND gs.`duration` IS NOT NULL
+  ) + (
+    SELECT COALESCE(SUM(s.`duration`), 0) FROM `scores` s
+    WHERE s.`user_id` = OLD.`user_id` AND s.`duration` IS NOT NULL AND s.`deleted_at` IS NULL
+  ) WHERE u.`id` = OLD.`user_id`;
+END$$
+
+DELIMITER ;
+
 -- ── 4. Seed data ─────────────────────────────────────────────
 
 -- 4.1 Default admin user  (password: admin123)
