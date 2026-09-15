@@ -43,6 +43,7 @@ include '../includes/header.php';
             <a href="games.php" class="active">Games</a>
             <a href="scores.php">Scores</a>
             <a href="trash.php">🗑 Trash</a>
+            <a href="backup_db.php">Backup Database</a>
         </nav>
     </div>
 
